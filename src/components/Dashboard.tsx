@@ -184,7 +184,7 @@ export default function Dashboard() {
     const previousStatus = project.status;
     setProjects((current) => current.map((item) => (item.id === project.id ? { ...item, status } : item)));
     setChangingStatusId(project.id);
-    setMessage(`Estado actualizado a ${statusLabels[status]}. Moviendo carpeta en OneDrive...`);
+    setMessage(`Estado actualizado a ${statusLabels[status]}. Revisando carpeta en OneDrive...`);
     const response = await fetch("/api/project-actions", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -204,7 +204,7 @@ export default function Dashboard() {
       : payload.folderError
         ? ` Estado guardado, pero OneDrive ha devuelto: ${payload.folderError}`
       : payload.folder?.reason
-        ? ` ${payload.folder.reason}`
+        ? ` Estado guardado sin mover carpeta: ${payload.folder.reason}`
         : "";
     setMessage(`Estado actualizado a ${statusLabels[status]}.${folderMessage}`);
   }

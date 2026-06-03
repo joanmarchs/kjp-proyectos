@@ -91,7 +91,8 @@ export async function PATCH(request: Request) {
 
     try {
       const folder = await moveProjectFolder(name, status);
-      return NextResponse.json({ status, folder, statusUpdated: true });
+      const folderMissing = !folder.moved && "reason" in folder && folder.reason === "La carpeta no existia.";
+      return NextResponse.json({ status, folder, folderMissing, statusUpdated: true });
     } catch (error) {
       return NextResponse.json({
         status,
