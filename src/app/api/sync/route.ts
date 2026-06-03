@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { fetchProjectCostsFromHolded } from "@/lib/holded";
+import { isAuthenticated } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
+
   try {
     const projects = await fetchProjectCostsFromHolded();
     const supabase = getSupabaseAdmin();

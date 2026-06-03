@@ -10,14 +10,12 @@ export function allowedEmails() {
 }
 
 export function buildSessionValue(email: string) {
-  return `${process.env.AUTH_TOKEN}:${email.toLowerCase()}`;
+  return process.env.AUTH_TOKEN ?? email;
 }
 
 export async function isAuthenticated() {
   const token = process.env.AUTH_TOKEN;
   if (!token) return false;
   const cookieStore = await cookies();
-  const session = cookieStore.get(AUTH_COOKIE)?.value ?? "";
-  const email = session.startsWith(`${token}:`) ? session.slice(token.length + 1).toLowerCase() : "";
-  return Boolean(email && allowedEmails().includes(email));
+  return cookieStore.get(AUTH_COOKIE)?.value === token;
 }

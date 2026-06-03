@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { createHoldedProject } from "@/lib/holded";
+import { isAuthenticated } from "@/lib/auth";
 import { assertProjectFolderCanBeCreated, copyProjectTemplate } from "@/lib/project-folders";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
+
   try {
     const body = (await request.json()) as { name?: string; startDate?: string | null };
     const name = body.name?.trim() ?? "";

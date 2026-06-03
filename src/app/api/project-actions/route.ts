@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { deleteHoldedProject, updateHoldedProject } from "@/lib/holded";
+import { isAuthenticated } from "@/lib/auth";
 import { deleteProjectFolder } from "@/lib/project-folders";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
+
   try {
     const body = (await request.json()) as { id?: string; name?: string; startDate?: string | null };
     const project = await updateHoldedProject({
@@ -39,6 +44,10 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
+
   try {
     const body = (await request.json()) as { id?: string; name?: string };
     const id = body.id ?? "";

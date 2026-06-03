@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchProjectCostsFromHolded } from "@/lib/holded";
+import { isAuthenticated } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { ProjectCost } from "@/lib/types";
 
@@ -33,6 +34,10 @@ function fromDb(row: DbProject): ProjectCost {
 }
 
 export async function GET() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+  }
+
   const supabase = getSupabaseAdmin();
 
   if (!supabase) {
