@@ -1,11 +1,11 @@
 :root {
-  --bg: #0c0f0a;
-  --surface: #111410;
-  --card: #161a12;
-  --line: #27311e;
-  --text: #e8eedf;
-  --muted: #7e876e;
-  --accent: #a8e063;
+  --bg: #10140d;
+  --surface: #171d14;
+  --card: #1c2418;
+  --line: #3d4d31;
+  --text: #fbfff4;
+  --muted: #bac7aa;
+  --accent: #b9f56e;
   --warn: #f5c842;
   --bad: #ff6b4a;
   --info: #4ac8e0;
@@ -22,6 +22,16 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+::placeholder {
+  color: #d5dfca;
+  opacity: 0.72;
+}
+
+::selection {
+  background: rgba(185, 245, 110, 0.28);
+  color: var(--text);
 }
 
 button,
@@ -55,6 +65,7 @@ input {
   font-size: 10px;
   letter-spacing: 3px;
   text-transform: uppercase;
+  text-shadow: 0 0 14px rgba(185, 245, 110, 0.18);
 }
 
 h1 {
@@ -72,6 +83,7 @@ h1 em {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 11px;
+  font-weight: 600;
 }
 
 .sync {
@@ -126,6 +138,7 @@ h1 em {
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .create-project input {
@@ -137,10 +150,12 @@ h1 em {
   background: var(--card);
   color: var(--text);
   padding: 0 10px;
+  box-shadow: inset 0 0 0 1px rgba(251, 255, 244, 0.03);
 }
 
 .create-project input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(185, 245, 110, 0.14);
 }
 
 .spin {
@@ -167,6 +182,7 @@ h1 em {
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .filter {
@@ -184,6 +200,7 @@ h1 em {
   font-size: 10px;
   letter-spacing: 1px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .sort-label {
@@ -220,6 +237,7 @@ h1 em {
   border-radius: 6px;
   background: var(--card);
   color: var(--muted);
+  box-shadow: inset 0 0 0 1px rgba(251, 255, 244, 0.03);
 }
 
 .search input {
@@ -249,6 +267,7 @@ h1 em {
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .summary strong {
@@ -281,6 +300,7 @@ h1 em {
   border: 1px dashed var(--line);
   border-radius: 6px;
   color: var(--muted);
+  font-weight: 700;
   text-align: center;
 }
 
@@ -296,6 +316,7 @@ h1 em {
   border-left-width: 3px;
   border-radius: 6px;
   background: var(--card);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
 }
 
 .project-card.loss {
@@ -350,6 +371,7 @@ h1 em {
   font-size: 10px;
   letter-spacing: 1px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .project-link-action {
@@ -367,6 +389,7 @@ h1 em {
   padding: 0 10px;
   text-decoration: none;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .project-link-action:hover {
@@ -403,6 +426,7 @@ h1 em {
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .edit-project input {
@@ -414,6 +438,11 @@ h1 em {
   background: var(--surface);
   color: var(--text);
   padding: 0 10px;
+}
+
+.edit-project input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(185, 245, 110, 0.14);
 }
 
 .toggle {
@@ -430,6 +459,7 @@ h1 em {
   overflow: hidden;
   font-size: 15px;
   font-weight: 700;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -448,6 +478,7 @@ h1 em {
   font-size: 9px;
   letter-spacing: 1px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .good {
@@ -506,6 +537,7 @@ td i b {
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 table {
@@ -530,6 +562,7 @@ td:first-child span {
   color: var(--muted);
   font-family: "Courier New", monospace;
   font-size: 11px;
+  font-weight: 700;
 }
 
 td:last-child {
@@ -543,6 +576,7 @@ td:last-child small {
   margin-top: 2px;
   color: var(--muted);
   font-size: 10px;
+  font-weight: 700;
 }
 
 td i b {
@@ -632,6 +666,7 @@ td i b {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--muted);
+  font-weight: 700;
 }
 
 .tender-summary {
@@ -655,6 +690,7 @@ td i b {
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .tender-summary strong {
@@ -689,6 +725,13 @@ td i b {
   background: var(--surface);
   color: var(--text);
   padding: 0 10px;
+}
+
+.tender-toolbar input:focus,
+.measurement-container input:focus,
+.supplier-card input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(185, 245, 110, 0.14);
 }
 
 .tender-toolbar button,
@@ -760,6 +803,7 @@ td i b {
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .icon-danger {
@@ -792,11 +836,13 @@ td i b {
   font-size: 11px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .muted-copy {
   margin: 0;
   color: var(--muted);
+  font-weight: 600;
 }
 
 .supplier-card {
@@ -821,6 +867,7 @@ td i b {
 .price-list span {
   overflow: hidden;
   color: var(--muted);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -861,8 +908,8 @@ td i b {
   display: grid;
   min-height: 100vh;
   place-items: center;
-  background: #0c0f0a;
-  color: #e8eedf;
+  background: #10140d;
+  color: #fbfff4;
   padding: 24px;
 }
 
@@ -870,10 +917,11 @@ td i b {
   display: grid;
   gap: 16px;
   width: min(100%, 390px);
-  border: 1px solid #27311e;
+  border: 1px solid #3d4d31;
   border-radius: 10px;
-  background: #161a12;
+  background: #1c2418;
   padding: 28px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
 }
 
 .login-icon {
@@ -882,14 +930,15 @@ td i b {
   width: 46px;
   height: 46px;
   border-radius: 8px;
-  background: #a8e063;
-  color: #0c0f0a;
+  background: #b9f56e;
+  color: #10140d;
 }
 
 .login-card h1 {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 30px;
   font-weight: 800;
+  color: #fbfff4;
 }
 
 .login-card label {
@@ -898,33 +947,35 @@ td i b {
 }
 
 .login-card label span {
-  color: #7e876e;
+  color: #bac7aa;
   font-family: "Courier New", monospace;
   font-size: 10px;
   letter-spacing: 2px;
   text-transform: uppercase;
+  font-weight: 700;
 }
 
 .login-card input {
   min-height: 42px;
-  border: 1px solid #27311e;
+  border: 1px solid #5c704c;
   border-radius: 6px;
-  background: #111410;
-  color: #e8eedf;
+  background: #151b12;
+  color: #fbfff4;
   outline: 0;
   padding: 0 12px;
 }
 
 .login-card input:focus {
-  border-color: #a8e063;
+  border-color: #b9f56e;
+  box-shadow: 0 0 0 3px rgba(185, 245, 110, 0.18);
 }
 
 .login-card button {
   min-height: 42px;
   border: 0;
   border-radius: 6px;
-  background: #a8e063;
-  color: #0c0f0a;
+  background: #b9f56e;
+  color: #10140d;
   cursor: pointer;
   font-weight: 800;
 }
