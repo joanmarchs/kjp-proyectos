@@ -10,11 +10,15 @@ import {
 } from "./microsoft-graph";
 
 const STUDIES_ROOT = "D:\\OneDrive - KJP\\ESTUDIOS";
+const WORKS_ROOT = "D:\\OneDrive - KJP\\OBRAS";
 const TEMPLATE_NAME = "PlantillaProyectos";
-const STATUS_FOLDER_NAMES: Record<ProjectFolderStatus, string | null> = {
-  fase_estudio: null,
-  pendiente_adjudicar: "Z_PENDIENTE DE ADJUDICAR",
-  desestimado: "X_DESESTIMADOS"
+const STATUS_DESTINATIONS: Record<ProjectFolderStatus, { root: string; rootName: string; childName: string | null }> = {
+  fase_estudio: { root: STUDIES_ROOT, rootName: "ESTUDIOS", childName: null },
+  pendiente_adjudicar: { root: STUDIES_ROOT, rootName: "ESTUDIOS", childName: "Z_PENDIENTE DE ADJUDICAR" },
+  desestimado: { root: STUDIES_ROOT, rootName: "ESTUDIOS", childName: "X_DESESTIMADOS" },
+  fase_obra: { root: WORKS_ROOT, rootName: "OBRAS", childName: null },
+  pendiente_facturar: { root: WORKS_ROOT, rootName: "OBRAS", childName: "Z_PENDIENTE DE FACTURAR" },
+  facturado: { root: WORKS_ROOT, rootName: "OBRAS", childName: "X_FACTURADO" }
 };
 
 function sanitizeWindowsFolderName(name: string) {
@@ -75,10 +79,9 @@ export async function deleteProjectFolder(projectName: string) {
   if (!folderName) throw new Error("El nombre de carpeta del proyecto no es valido.");
   if (folderName === TEMPLATE_NAME) throw new Error("No se puede eliminar la carpeta de plantilla.");
 
-  const root = path.resolve(STUDIES_ROOT);
   const found = await findLocalProjectFolder(folderName);
   const target = found?.path ?? path.resolve(STUDIES_ROOT, folderName);
-  if (!target.startsWith(`${root}${path.sep}`)) throw new Error("La carpeta destino esta fuera de ESTUDIOS.");
+  assertInsideManagedRoots(target);
 
   if (!found) {
     return { provider: "local", deleted: false, path: target, reason: "La carpeta no existia." };
@@ -104,7 +107,7 @@ export async function moveProjectFolder(projectName: string, status: ProjectFold
 
   const destinationParent = localStatusParent(status);
   const destination = path.resolve(destinationParent, folderName);
-  assertInsideStudies(destination);
+  assertInsideManagedRoots(destination);
 
   if (path.resolve(found.path) === destination) {
     return { provider: "local", moved: false, path: destination, reason: "La carpeta ya estaba en el estado indicado." };
@@ -119,20 +122,21 @@ export async function moveProjectFolder(projectName: string, status: ProjectFold
   }
 
   await rename(found.path, destination);
-  return { provider: "local", moved: true, path: destination, from: found.parentName, to: STATUS_FOLDER_NAMES[status] ?? "ESTUDIOS" };
+  const destinationConfig = STATUS_DESTINATIONS[status];
+  return { provider: "local", moved: true, path: destination, from: found.parentName, to: destinationConfig.childName ?? destinationConfig.rootName };
 }
 
 function localStatusParent(status: ProjectFolderStatus) {
-  const folderName = STATUS_FOLDER_NAMES[status];
-  return folderName ? path.join(STUDIES_ROOT, folderName) : STUDIES_ROOT;
+  const destination = STATUS_DESTINATIONS[status];
+  return destination.childName ? path.join(destination.root, destination.childName) : destination.root;
 }
 
 async function findLocalProjectFolder(folderName: string) {
-  const candidates: Array<{ parentName: string; path: string }> = [
-    { parentName: "ESTUDIOS", path: path.join(STUDIES_ROOT, folderName) },
-    { parentName: "Z_PENDIENTE DE ADJUDICAR", path: path.join(STUDIES_ROOT, "Z_PENDIENTE DE ADJUDICAR", folderName) },
-    { parentName: "X_DESESTIMADOS", path: path.join(STUDIES_ROOT, "X_DESESTIMADOS", folderName) }
-  ];
+  const candidates = Object.values(STATUS_DESTINATIONS).map((destination) => {
+    const parentName = destination.childName ?? destination.rootName;
+    const parentPath = destination.childName ? path.join(destination.root, destination.childName) : destination.root;
+    return { parentName, path: path.join(parentPath, folderName) };
+  });
 
   for (const candidate of candidates) {
     try {
@@ -146,8 +150,10 @@ async function findLocalProjectFolder(folderName: string) {
   return null;
 }
 
-function assertInsideStudies(targetPath: string) {
-  const root = path.resolve(STUDIES_ROOT);
+function assertInsideManagedRoots(targetPath: string) {
   const target = path.resolve(targetPath);
-  if (!target.startsWith(`${root}${path.sep}`)) throw new Error("La carpeta destino esta fuera de ESTUDIOS.");
+  const roots = [path.resolve(STUDIES_ROOT), path.resolve(WORKS_ROOT)];
+  if (!roots.some((root) => target.startsWith(`${root}${path.sep}`))) {
+    throw new Error("La carpeta destino esta fuera de ESTUDIOS u OBRAS.");
+  }
 }

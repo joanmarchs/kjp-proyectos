@@ -394,6 +394,24 @@ h1 em {
   color: var(--bad);
 }
 
+.status-pill.fase_obra {
+  border-color: rgba(74, 200, 224, 0.68);
+  background: rgba(74, 200, 224, 0.12);
+  color: var(--info);
+}
+
+.status-pill.pendiente_facturar {
+  border-color: rgba(255, 180, 82, 0.7);
+  background: rgba(255, 180, 82, 0.12);
+  color: #ffcb7a;
+}
+
+.status-pill.facturado {
+  border-color: rgba(185, 245, 110, 0.68);
+  background: rgba(185, 245, 110, 0.15);
+  color: #d7ff9c;
+}
+
 .status-control {
   display: inline-flex;
   align-items: center;

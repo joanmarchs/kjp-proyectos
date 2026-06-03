@@ -1,6 +1,12 @@
 export type CostTuple = [name: string, amount: number];
 
-export type ProjectStatus = "fase_estudio" | "pendiente_adjudicar" | "desestimado";
+export type ProjectStatus =
+  | "fase_estudio"
+  | "pendiente_adjudicar"
+  | "desestimado"
+  | "fase_obra"
+  | "pendiente_facturar"
+  | "facturado";
 
 export type ProjectCost = {
   id: string;

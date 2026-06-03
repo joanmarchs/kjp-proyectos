@@ -3,6 +3,10 @@ type GraphDriveItem = {
   name: string;
   webUrl?: string;
   folder?: unknown;
+  parentReference?: {
+    id?: string;
+    driveId?: string;
+  };
 };
 
 type GraphChildrenResponse = {
@@ -10,13 +14,22 @@ type GraphChildrenResponse = {
   "@odata.nextLink"?: string;
 };
 
-export type ProjectFolderStatus = "fase_estudio" | "pendiente_adjudicar" | "desestimado";
+export type ProjectFolderStatus =
+  | "fase_estudio"
+  | "pendiente_adjudicar"
+  | "desestimado"
+  | "fase_obra"
+  | "pendiente_facturar"
+  | "facturado";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
-const STATUS_FOLDER_NAMES: Record<ProjectFolderStatus, string | null> = {
-  fase_estudio: null,
-  pendiente_adjudicar: "Z_PENDIENTE DE ADJUDICAR",
-  desestimado: "X_DESESTIMADOS"
+const STATUS_DESTINATIONS: Record<ProjectFolderStatus, { rootName: "ESTUDIOS" | "OBRAS"; childName: string | null }> = {
+  fase_estudio: { rootName: "ESTUDIOS", childName: null },
+  pendiente_adjudicar: { rootName: "ESTUDIOS", childName: "Z_PENDIENTE DE ADJUDICAR" },
+  desestimado: { rootName: "ESTUDIOS", childName: "X_DESESTIMADOS" },
+  fase_obra: { rootName: "OBRAS", childName: null },
+  pendiente_facturar: { rootName: "OBRAS", childName: "Z_PENDIENTE DE FACTURAR" },
+  facturado: { rootName: "OBRAS", childName: "X_FACTURADO" }
 };
 
 function requiredEnv(name: string) {
@@ -100,8 +113,7 @@ async function graphFetch<T>(pathOrUrl: string, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>;
 }
 
-async function getChildren(parentId: string) {
-  const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
+async function getChildren(driveId: string, parentId: string) {
   const children: GraphDriveItem[] = [];
   let nextUrl: string | undefined = `${GRAPH_BASE}/drives/${driveId}/items/${parentId}/children?$select=id,name,webUrl,folder&$top=200`;
 
@@ -114,40 +126,64 @@ async function getChildren(parentId: string) {
   return children;
 }
 
-async function findChildFolder(parentId: string, folderName: string) {
-  const children = await getChildren(parentId);
+async function findChildFolder(driveId: string, parentId: string, folderName: string) {
+  const children = await getChildren(driveId, parentId);
   return children.find((item) => item.name.toLowerCase() === folderName.toLowerCase() && item.folder);
 }
 
 async function getGraphStatusParent(status: ProjectFolderStatus) {
-  const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
-  const statusFolderName = STATUS_FOLDER_NAMES[status];
-  if (!statusFolderName) return { id: studiesFolderId, name: "ESTUDIOS" };
+  const destination = STATUS_DESTINATIONS[status];
+  const root = await getGraphRootFolder(destination.rootName);
+  if (!destination.childName) return { driveId: root.driveId, id: root.id, name: destination.rootName, webUrl: root.webUrl };
 
-  const folder = await findChildFolder(studiesFolderId, statusFolderName);
-  if (!folder) throw new Error(`No se encuentra la carpeta de destino en ESTUDIOS: ${statusFolderName}`);
-  return { id: folder.id, name: statusFolderName, webUrl: folder.webUrl };
+  const folder = await findChildFolder(root.driveId, root.id, destination.childName);
+  if (!folder) throw new Error(`No se encuentra la carpeta de destino en ${destination.rootName}: ${destination.childName}`);
+  return { driveId: root.driveId, id: folder.id, name: destination.childName, webUrl: folder.webUrl };
 }
 
 async function findGraphProjectFolderEverywhere(folderName: string) {
-  const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
-  const candidates: Array<{ status: ProjectFolderStatus; parentId: string; parentName: string }> = [
-    { status: "fase_estudio", parentId: studiesFolderId, parentName: "ESTUDIOS" }
-  ];
+  const candidates: Array<{ status: ProjectFolderStatus; driveId: string; parentId: string; parentName: string }> = [];
 
-  for (const status of ["pendiente_adjudicar", "desestimado"] as const) {
-    const statusFolderName = STATUS_FOLDER_NAMES[status];
-    if (!statusFolderName) continue;
-    const folder = await findChildFolder(studiesFolderId, statusFolderName);
-    if (folder) candidates.push({ status, parentId: folder.id, parentName: statusFolderName });
+  for (const status of Object.keys(STATUS_DESTINATIONS) as ProjectFolderStatus[]) {
+    try {
+      const parent = await getGraphStatusParent(status);
+      candidates.push({ status, parentId: parent.id, parentName: parent.name, driveId: parent.driveId });
+    } catch {
+      // Missing optional status folders should not stop searching other locations.
+    }
   }
 
   for (const candidate of candidates) {
-    const folder = await findChildFolder(candidate.parentId, folderName);
+    const folder = await findChildFolder(candidate.driveId, candidate.parentId, folderName);
     if (folder) return { ...candidate, folder };
   }
 
   return null;
+}
+
+async function getGraphRootFolder(rootName: "ESTUDIOS" | "OBRAS") {
+  const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
+  const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
+  if (rootName === "ESTUDIOS") {
+    const studies = await graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${studiesFolderId}`);
+    return { ...studies, driveId };
+  }
+
+  const worksFolderId = process.env.MS_GRAPH_WORKS_FOLDER_ID?.trim();
+  const worksDriveId = process.env.MS_GRAPH_WORKS_DRIVE_ID?.trim() || driveId;
+  if (worksFolderId) {
+    const works = await graphFetch<GraphDriveItem>(`/drives/${worksDriveId}/items/${worksFolderId}`);
+    if (!works.folder) throw new Error("MS_GRAPH_WORKS_FOLDER_ID no apunta a una carpeta.");
+    return { ...works, driveId: worksDriveId };
+  }
+
+  const studies = await graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${studiesFolderId}?$select=id,name,webUrl,folder,parentReference`);
+  const parentId = studies.parentReference?.id;
+  if (!parentId) throw new Error("No se pudo localizar la carpeta padre de ESTUDIOS para encontrar OBRAS.");
+
+  const works = await findChildFolder(driveId, parentId, "OBRAS");
+  if (!works) throw new Error("No se encuentra la carpeta OBRAS junto a ESTUDIOS. Configura MS_GRAPH_WORKS_FOLDER_ID en Vercel.");
+  return { ...works, driveId };
 }
 
 export async function assertGraphProjectFolderCanBeCreated(projectName: string) {
@@ -162,7 +198,7 @@ export async function assertGraphProjectFolderCanBeCreated(projectName: string) 
   const template = await graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${templateFolderId}`);
   if (!template.folder) throw new Error("MS_GRAPH_TEMPLATE_FOLDER_ID no apunta a una carpeta.");
 
-  const existing = await findChildFolder(studiesFolderId, folderName);
+  const existing = await findChildFolder(driveId, studiesFolderId, folderName);
   if (existing) throw new Error(`La carpeta ya existe en ESTUDIOS: ${folderName}`);
 
   return { provider: "microsoft-graph", folderName, parentId: studiesFolderId, templateId: templateFolderId };
@@ -198,7 +234,6 @@ export async function copyGraphProjectTemplate(projectName: string) {
 }
 
 export async function deleteGraphProjectFolder(projectName: string) {
-  const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
   const folderName = sanitizeGraphFolderName(projectName);
 
   if (!folderName) throw new Error("El nombre de carpeta del proyecto no es valido.");
@@ -209,12 +244,11 @@ export async function deleteGraphProjectFolder(projectName: string) {
     return { provider: "microsoft-graph", deleted: false, path: folderName, reason: "La carpeta no existia." };
   }
 
-  await graphFetch<void>(`/drives/${driveId}/items/${existing.folder.id}`, { method: "DELETE" });
+  await graphFetch<void>(`/drives/${existing.driveId}/items/${existing.folder.id}`, { method: "DELETE" });
   return { provider: "microsoft-graph", deleted: true, path: folderName, webUrl: existing.folder.webUrl };
 }
 
 export async function moveGraphProjectFolder(projectName: string, status: ProjectFolderStatus) {
-  const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
   const folderName = sanitizeGraphFolderName(projectName);
 
   if (!folderName) throw new Error("El nombre de carpeta del proyecto no es valido.");
@@ -230,12 +264,12 @@ export async function moveGraphProjectFolder(projectName: string, status: Projec
     return { provider: "microsoft-graph", moved: false, path: folderName, reason: "La carpeta ya estaba en el estado indicado." };
   }
 
-  const conflict = await findChildFolder(destination.id, folderName);
+  const conflict = await findChildFolder(destination.driveId, destination.id, folderName);
   if (conflict) throw new Error(`Ya existe una carpeta con este nombre en ${destination.name}: ${folderName}`);
 
-  const moved = await graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${existing.folder.id}`, {
+  const moved = await graphFetch<GraphDriveItem>(`/drives/${existing.driveId}/items/${existing.folder.id}`, {
     method: "PATCH",
-    body: JSON.stringify({ parentReference: { id: destination.id } })
+    body: JSON.stringify({ parentReference: { driveId: destination.driveId, id: destination.id } })
   });
 
   return {
@@ -255,16 +289,21 @@ export async function graphDiagnostics() {
   const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
   const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
   const templateFolderId = requiredEnv("MS_GRAPH_TEMPLATE_FOLDER_ID");
-  const [studies, template, children] = await Promise.all([
+  const [studies, template, children, works] = await Promise.all([
     graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${studiesFolderId}`),
     graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${templateFolderId}`),
-    getChildren(studiesFolderId)
+    getChildren(driveId, studiesFolderId),
+    getGraphRootFolder("OBRAS").catch((error) => ({ error: error instanceof Error ? error.message : "No se pudo localizar OBRAS." }))
   ]);
 
   return {
     configured,
     driveId,
     studies: { id: studies.id, name: studies.name, webUrl: studies.webUrl },
+    works:
+      "error" in works
+        ? works
+        : { driveId: works.driveId, id: works.id, name: works.name, webUrl: works.webUrl, isFolder: Boolean(works.folder) },
     template: { id: template.id, name: template.name, webUrl: template.webUrl, isFolder: Boolean(template.folder) },
     sampleChildren: children.slice(0, 20).map((item) => ({ id: item.id, name: item.name, isFolder: Boolean(item.folder) }))
   };

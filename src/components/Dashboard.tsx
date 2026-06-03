@@ -13,7 +13,10 @@ type SortDirection = "asc" | "desc";
 const statusLabels: Record<ProjectStatus, string> = {
   fase_estudio: "Fase estudio",
   pendiente_adjudicar: "Pendiente de adjudicar",
-  desestimado: "Desestimado"
+  desestimado: "Desestimado",
+  fase_obra: "Fase de obra",
+  pendiente_facturar: "Pendiente de facturar",
+  facturado: "Facturado"
 };
 
 const statusOptions = Object.entries(statusLabels) as Array<[ProjectStatus, string]>;

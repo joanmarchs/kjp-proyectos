@@ -20,7 +20,14 @@ type DbProject = {
 };
 
 function projectStatus(value: unknown): ProjectStatus {
-  return value === "pendiente_adjudicar" || value === "desestimado" || value === "fase_estudio" ? value : "fase_estudio";
+  return value === "pendiente_adjudicar" ||
+    value === "desestimado" ||
+    value === "fase_estudio" ||
+    value === "fase_obra" ||
+    value === "pendiente_facturar" ||
+    value === "facturado"
+    ? value
+    : "fase_estudio";
 }
 
 function fromDb(row: DbProject): ProjectCost {

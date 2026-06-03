@@ -8,7 +8,14 @@ import type { ProjectStatus } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 function projectStatus(value: unknown): ProjectStatus | null {
-  return value === "pendiente_adjudicar" || value === "desestimado" || value === "fase_estudio" ? value : null;
+  return value === "pendiente_adjudicar" ||
+    value === "desestimado" ||
+    value === "fase_estudio" ||
+    value === "fase_obra" ||
+    value === "pendiente_facturar" ||
+    value === "facturado"
+    ? value
+    : null;
 }
 
 export async function PUT(request: Request) {
