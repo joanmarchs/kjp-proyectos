@@ -1,0 +1,12 @@
+# Copy this file to:
+#   C:\Users\<usuario>\.cloudflared\config.yml
+#
+# Replace the tunnel id and hostname with your Cloudflare values.
+
+tunnel: YOUR_TUNNEL_ID
+credentials-file: C:\Users\<usuario>\.cloudflared\YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: proyectos.tudominio.com
+    service: http://localhost:3026
+  - service: http_status:404
