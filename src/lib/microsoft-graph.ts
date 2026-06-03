@@ -113,6 +113,58 @@ async function graphFetch<T>(pathOrUrl: string, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>;
 }
 
+async function waitForGraphAsyncOperation(monitorUrl: string) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const status = await graphFetch<{ status?: string; percentageComplete?: number; error?: { message?: string } }>(monitorUrl);
+    const normalizedStatus = status.status?.toLowerCase();
+
+    if (normalizedStatus === "completed" || normalizedStatus === "succeeded") return;
+    if (normalizedStatus === "failed" || normalizedStatus === "deletefailed") {
+      throw new Error(status.error?.message ?? "Microsoft Graph no pudo completar el movimiento de carpeta.");
+    }
+  }
+
+  throw new Error("Microsoft Graph todavia esta moviendo la carpeta. Espera unos segundos y vuelve a sincronizar.");
+}
+
+async function moveGraphDriveItem(params: {
+  sourceDriveId: string;
+  itemId: string;
+  destinationDriveId: string;
+  destinationFolderId: string;
+}) {
+  const response = await fetch(`${GRAPH_BASE}/drives/${params.sourceDriveId}/items/${params.itemId}`, {
+    method: "PATCH",
+    headers: {
+      authorization: `Bearer ${await getGraphAccessToken()}`,
+      accept: "application/json",
+      "content-type": "application/json",
+      prefer: "respond-async"
+    },
+    body: JSON.stringify({
+      parentReference: {
+        driveId: params.destinationDriveId,
+        id: params.destinationFolderId
+      }
+    }),
+    cache: "no-store"
+  });
+
+  if (response.status === 202) {
+    const monitorUrl = response.headers.get("location");
+    if (!monitorUrl) throw new Error("Microsoft Graph inicio un movimiento asincrono sin URL de seguimiento.");
+    await waitForGraphAsyncOperation(monitorUrl);
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Microsoft Graph ${response.status}: ${(await response.text()).slice(0, 500)}`);
+  }
+
+  return (await response.json()) as GraphDriveItem;
+}
+
 async function getChildren(driveId: string, parentId: string) {
   const children: GraphDriveItem[] = [];
   let nextUrl: string | undefined = `${GRAPH_BASE}/drives/${driveId}/items/${parentId}/children?$select=id,name,webUrl,folder&$top=200`;
@@ -267,10 +319,13 @@ export async function moveGraphProjectFolder(projectName: string, status: Projec
   const conflict = await findChildFolder(destination.driveId, destination.id, folderName);
   if (conflict) throw new Error(`Ya existe una carpeta con este nombre en ${destination.name}: ${folderName}`);
 
-  const moved = await graphFetch<GraphDriveItem>(`/drives/${existing.driveId}/items/${existing.folder.id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ parentReference: { driveId: destination.driveId, id: destination.id } })
+  const moved = await moveGraphDriveItem({
+    sourceDriveId: existing.driveId,
+    itemId: existing.folder.id,
+    destinationDriveId: destination.driveId,
+    destinationFolderId: destination.id
   });
+  const destinationFolder = moved ?? (await findChildFolder(destination.driveId, destination.id, folderName));
 
   return {
     provider: "microsoft-graph",
@@ -278,7 +333,7 @@ export async function moveGraphProjectFolder(projectName: string, status: Projec
     path: folderName,
     from: existing.parentName,
     to: destination.name,
-    webUrl: moved.webUrl
+    webUrl: destinationFolder?.webUrl
   };
 }
 
