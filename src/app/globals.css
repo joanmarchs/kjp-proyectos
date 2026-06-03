@@ -857,6 +857,83 @@ td i b {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #0c0f0a;
+  color: #e8eedf;
+  padding: 24px;
+}
+
+.login-card {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 390px);
+  border: 1px solid #27311e;
+  border-radius: 10px;
+  background: #161a12;
+  padding: 28px;
+}
+
+.login-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  background: #a8e063;
+  color: #0c0f0a;
+}
+
+.login-card h1 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.login-card label {
+  display: grid;
+  gap: 8px;
+}
+
+.login-card label span {
+  color: #7e876e;
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.login-card input {
+  min-height: 42px;
+  border: 1px solid #27311e;
+  border-radius: 6px;
+  background: #111410;
+  color: #e8eedf;
+  outline: 0;
+  padding: 0 12px;
+}
+
+.login-card input:focus {
+  border-color: #a8e063;
+}
+
+.login-card button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: #a8e063;
+  color: #0c0f0a;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.login-error {
+  margin: 0;
+  color: #ff6b4a;
+}
+
 .bid-topbar {
   display: grid;
   grid-template-columns: 130px 220px auto 64px;

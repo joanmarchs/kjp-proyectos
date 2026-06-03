@@ -255,6 +255,15 @@ export default function Dashboard() {
           <p className="meta">Datos reales de Holded, normalizados y guardados en Supabase.</p>
         </div>
         <div className="header-actions">
+          <button
+            className="sync secondary"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+          >
+            Salir
+          </button>
           <button className="sync secondary" onClick={toggleCreateForm}>
             {showCreate ? <X size={16} /> : <Plus size={16} />}
             Nuevo proyecto
