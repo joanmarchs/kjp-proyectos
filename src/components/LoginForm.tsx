@@ -10,8 +10,11 @@ export default function LoginForm({
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const params = use(searchParams);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(params.error === "config" ? "Falta configurar LOGIN_PASSWORD y AUTH_TOKEN en Vercel." : "");
+  const [error, setError] = useState(
+    params.error === "config" ? "Falta configurar LOGIN_PASSWORD, AUTH_TOKEN y AUTH_ALLOWED_EMAILS en Vercel." : ""
+  );
   const [loading, setLoading] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -22,7 +25,7 @@ export default function LoginForm({
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ email, password })
     });
     const payload = await response.json();
     setLoading(false);
@@ -44,9 +47,18 @@ export default function LoginForm({
         <p className="eyebrow">KJP</p>
         <h1>Acceso privado</h1>
         <label>
-          <span>Contraseña</span>
+          <span>Email</span>
           <input
             autoFocus
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="tu@email.com"
+          />
+        </label>
+        <label>
+          <span>Contraseña</span>
+          <input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
