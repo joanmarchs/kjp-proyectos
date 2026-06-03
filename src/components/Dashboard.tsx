@@ -181,8 +181,10 @@ export default function Dashboard() {
   async function changeProjectStatus(project: ProjectCost, status: ProjectStatus) {
     if (project.status === status) return;
 
+    const previousStatus = project.status;
+    setProjects((current) => current.map((item) => (item.id === project.id ? { ...item, status } : item)));
     setChangingStatusId(project.id);
-    setMessage("");
+    setMessage(`Estado actualizado a ${statusLabels[status]}. Moviendo carpeta en OneDrive...`);
     const response = await fetch("/api/project-actions", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -192,13 +194,15 @@ export default function Dashboard() {
     setChangingStatusId(null);
 
     if (!response.ok) {
+      setProjects((current) => current.map((item) => (item.id === project.id ? { ...item, status: previousStatus } : item)));
       setMessage(payload.error ?? "No se pudo cambiar el estado del proyecto.");
       return;
     }
 
-    setProjects((current) => current.map((item) => (item.id === project.id ? { ...item, status } : item)));
     const folderMessage = payload.folder?.moved
       ? ` Carpeta movida de ${payload.folder.from} a ${payload.folder.to}.`
+      : payload.folderError
+        ? ` Estado guardado, pero OneDrive ha devuelto: ${payload.folderError}`
       : payload.folder?.reason
         ? ` ${payload.folder.reason}`
         : "";

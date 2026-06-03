@@ -74,11 +74,6 @@ export async function PATCH(request: Request) {
     if (!name) return NextResponse.json({ error: "Falta el nombre del proyecto." }, { status: 400 });
     if (!status) return NextResponse.json({ error: "Estado de proyecto no valido." }, { status: 400 });
 
-    const folder = await moveProjectFolder(name, status);
-    if (!folder.moved && "reason" in folder && folder.reason === "La carpeta no existia.") {
-      return NextResponse.json({ error: "No se encontro la carpeta del proyecto para moverla.", folder }, { status: 404 });
-    }
-
     const supabase = getSupabaseAdmin();
 
     if (supabase) {
@@ -94,7 +89,16 @@ export async function PATCH(request: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ status, folder });
+    try {
+      const folder = await moveProjectFolder(name, status);
+      return NextResponse.json({ status, folder, statusUpdated: true });
+    } catch (error) {
+      return NextResponse.json({
+        status,
+        statusUpdated: true,
+        folderError: error instanceof Error ? error.message : "No se pudo mover la carpeta en OneDrive."
+      });
+    }
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "No se pudo cambiar el estado del proyecto." },
