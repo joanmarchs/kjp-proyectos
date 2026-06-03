@@ -6,9 +6,17 @@ export async function POST(request: Request) {
   const expectedPassword = process.env.LOGIN_PASSWORD;
   const authToken = process.env.AUTH_TOKEN;
   const normalizedEmail = email?.trim().toLowerCase() ?? "";
+  const missingConfig = [
+    !expectedPassword ? "LOGIN_PASSWORD" : "",
+    !authToken ? "AUTH_TOKEN" : "",
+    allowedEmails().length === 0 ? "AUTH_ALLOWED_EMAILS" : ""
+  ].filter(Boolean);
 
-  if (!expectedPassword || !authToken || allowedEmails().length === 0) {
-    return NextResponse.json({ error: "Login no configurado en el servidor." }, { status: 500 });
+  if (missingConfig.length > 0) {
+    return NextResponse.json(
+      { error: `Login no configurado en el servidor. Falta: ${missingConfig.join(", ")}.` },
+      { status: 500 }
+    );
   }
 
   if (!allowedEmails().includes(normalizedEmail)) {
