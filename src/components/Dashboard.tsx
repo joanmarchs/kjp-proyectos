@@ -63,6 +63,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<ProjectStatus[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>("cost");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -233,6 +234,10 @@ export default function Dashboard() {
     setSelectedYears((current) => (current.includes(year) ? current.filter((item) => item !== year) : [...current, year]));
   }
 
+  function toggleStatus(status: ProjectStatus) {
+    setSelectedStatuses((current) => (current.includes(status) ? current.filter((item) => item !== status) : [...current, status]));
+  }
+
   useEffect(() => {
     loadProjects().catch((error) => {
       setMessage(error instanceof Error ? error.message : "No se pudieron cargar los datos.");
@@ -255,6 +260,7 @@ export default function Dashboard() {
       if (filter === "loss" && project.profit >= 0) return false;
       if (filter === "large" && project.cost < 50000) return false;
       if (selectedYears.length > 0 && (!projectYear || !selectedYears.includes(projectYear))) return false;
+      if (selectedStatuses.length > 0 && !selectedStatuses.includes(project.status)) return false;
       if (term && !project.name.toLowerCase().includes(term)) return false;
       return true;
     });
@@ -273,7 +279,7 @@ export default function Dashboard() {
 
       return (a[sortKey] - b[sortKey]) * multiplier;
     });
-  }, [projects, filter, query, selectedYears, sortDirection, sortKey]);
+  }, [projects, filter, query, selectedStatuses, selectedYears, sortDirection, sortKey]);
 
   const summary = useMemo(
     () =>
@@ -364,6 +370,19 @@ export default function Dashboard() {
             ))}
           </>
         ) : null}
+        <span className="filter-label sort-label">Estado</span>
+        <button className={selectedStatuses.length === 0 ? "filter active status-filter" : "filter status-filter"} onClick={() => setSelectedStatuses([])}>
+          Todos
+        </button>
+        {statusOptions.map(([status, label]) => (
+          <button
+            key={status}
+            className={selectedStatuses.includes(status) ? `filter active status-filter ${status}` : `filter status-filter ${status}`}
+            onClick={() => toggleStatus(status)}
+          >
+            {label}
+          </button>
+        ))}
         <span className="filter-label sort-label">Orden</span>
         {[
           ["name", "Nombre"],
