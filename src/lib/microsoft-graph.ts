@@ -10,7 +10,14 @@ type GraphChildrenResponse = {
   "@odata.nextLink"?: string;
 };
 
+export type ProjectFolderStatus = "fase_estudio" | "pendiente_adjudicar" | "desestimado";
+
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+const STATUS_FOLDER_NAMES: Record<ProjectFolderStatus, string | null> = {
+  fase_estudio: null,
+  pendiente_adjudicar: "Z_PENDIENTE DE ADJUDICAR",
+  desestimado: "X_DESESTIMADOS"
+};
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -112,6 +119,37 @@ async function findChildFolder(parentId: string, folderName: string) {
   return children.find((item) => item.name.toLowerCase() === folderName.toLowerCase() && item.folder);
 }
 
+async function getGraphStatusParent(status: ProjectFolderStatus) {
+  const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
+  const statusFolderName = STATUS_FOLDER_NAMES[status];
+  if (!statusFolderName) return { id: studiesFolderId, name: "ESTUDIOS" };
+
+  const folder = await findChildFolder(studiesFolderId, statusFolderName);
+  if (!folder) throw new Error(`No se encuentra la carpeta de destino en ESTUDIOS: ${statusFolderName}`);
+  return { id: folder.id, name: statusFolderName, webUrl: folder.webUrl };
+}
+
+async function findGraphProjectFolderEverywhere(folderName: string) {
+  const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
+  const candidates: Array<{ status: ProjectFolderStatus; parentId: string; parentName: string }> = [
+    { status: "fase_estudio", parentId: studiesFolderId, parentName: "ESTUDIOS" }
+  ];
+
+  for (const status of ["pendiente_adjudicar", "desestimado"] as const) {
+    const statusFolderName = STATUS_FOLDER_NAMES[status];
+    if (!statusFolderName) continue;
+    const folder = await findChildFolder(studiesFolderId, statusFolderName);
+    if (folder) candidates.push({ status, parentId: folder.id, parentName: statusFolderName });
+  }
+
+  for (const candidate of candidates) {
+    const folder = await findChildFolder(candidate.parentId, folderName);
+    if (folder) return { ...candidate, folder };
+  }
+
+  return null;
+}
+
 export async function assertGraphProjectFolderCanBeCreated(projectName: string) {
   const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
   const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
@@ -161,19 +199,53 @@ export async function copyGraphProjectTemplate(projectName: string) {
 
 export async function deleteGraphProjectFolder(projectName: string) {
   const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
-  const studiesFolderId = requiredEnv("MS_GRAPH_STUDIES_FOLDER_ID");
   const folderName = sanitizeGraphFolderName(projectName);
 
   if (!folderName) throw new Error("El nombre de carpeta del proyecto no es valido.");
   if (folderName === "PlantillaProyectos") throw new Error("No se puede eliminar la carpeta de plantilla.");
 
-  const existing = await findChildFolder(studiesFolderId, folderName);
+  const existing = await findGraphProjectFolderEverywhere(folderName);
   if (!existing) {
     return { provider: "microsoft-graph", deleted: false, path: folderName, reason: "La carpeta no existia." };
   }
 
-  await graphFetch<void>(`/drives/${driveId}/items/${existing.id}`, { method: "DELETE" });
-  return { provider: "microsoft-graph", deleted: true, path: folderName, webUrl: existing.webUrl };
+  await graphFetch<void>(`/drives/${driveId}/items/${existing.folder.id}`, { method: "DELETE" });
+  return { provider: "microsoft-graph", deleted: true, path: folderName, webUrl: existing.folder.webUrl };
+}
+
+export async function moveGraphProjectFolder(projectName: string, status: ProjectFolderStatus) {
+  const driveId = requiredEnv("MS_GRAPH_DRIVE_ID");
+  const folderName = sanitizeGraphFolderName(projectName);
+
+  if (!folderName) throw new Error("El nombre de carpeta del proyecto no es valido.");
+  if (folderName === "PlantillaProyectos") throw new Error("No se puede mover la carpeta de plantilla.");
+
+  const destination = await getGraphStatusParent(status);
+  const existing = await findGraphProjectFolderEverywhere(folderName);
+  if (!existing) {
+    return { provider: "microsoft-graph", moved: false, path: folderName, reason: "La carpeta no existia." };
+  }
+
+  if (existing.parentId === destination.id) {
+    return { provider: "microsoft-graph", moved: false, path: folderName, reason: "La carpeta ya estaba en el estado indicado." };
+  }
+
+  const conflict = await findChildFolder(destination.id, folderName);
+  if (conflict) throw new Error(`Ya existe una carpeta con este nombre en ${destination.name}: ${folderName}`);
+
+  const moved = await graphFetch<GraphDriveItem>(`/drives/${driveId}/items/${existing.folder.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ parentReference: { id: destination.id } })
+  });
+
+  return {
+    provider: "microsoft-graph",
+    moved: true,
+    path: folderName,
+    from: existing.parentName,
+    to: destination.name,
+    webUrl: moved.webUrl
+  };
 }
 
 export async function graphDiagnostics() {

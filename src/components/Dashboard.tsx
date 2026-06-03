@@ -4,11 +4,19 @@ import { ArrowDownUp, Pencil, Plus, RefreshCw, Search, Trash2, TriangleAlert, X 
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { ProjectCost } from "@/lib/types";
+import type { ProjectCost, ProjectStatus } from "@/lib/types";
 
 type Filter = "all" | "profit" | "loss" | "large";
 type SortKey = "name" | "startDate" | "cost" | "sales" | "profit";
 type SortDirection = "asc" | "desc";
+
+const statusLabels: Record<ProjectStatus, string> = {
+  fase_estudio: "Fase estudio",
+  pendiente_adjudicar: "Pendiente de adjudicar",
+  desestimado: "Desestimado"
+};
+
+const statusOptions = Object.entries(statusLabels) as Array<[ProjectStatus, string]>;
 
 const formatter = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -62,6 +70,7 @@ export default function Dashboard() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectStartDate, setNewProjectStartDate] = useState("");
   const [creating, setCreating] = useState(false);
+  const [changingStatusId, setChangingStatusId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
@@ -164,6 +173,33 @@ export default function Dashboard() {
 
     setMessage(payload.folder?.deleted ? `Proyecto eliminado y carpeta borrada: ${payload.folder.path}` : "Proyecto eliminado.");
     await loadProjects();
+  }
+
+  async function changeProjectStatus(project: ProjectCost, status: ProjectStatus) {
+    if (project.status === status) return;
+
+    setChangingStatusId(project.id);
+    setMessage("");
+    const response = await fetch("/api/project-actions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: project.id, name: project.name, status })
+    });
+    const payload = await response.json();
+    setChangingStatusId(null);
+
+    if (!response.ok) {
+      setMessage(payload.error ?? "No se pudo cambiar el estado del proyecto.");
+      return;
+    }
+
+    setProjects((current) => current.map((item) => (item.id === project.id ? { ...item, status } : item)));
+    const folderMessage = payload.folder?.moved
+      ? ` Carpeta movida de ${payload.folder.from} a ${payload.folder.to}.`
+      : payload.folder?.reason
+        ? ` ${payload.folder.reason}`
+        : "";
+    setMessage(`Estado actualizado a ${statusLabels[status]}.${folderMessage}`);
   }
 
   function toggleCreateForm() {
@@ -382,6 +418,7 @@ export default function Dashboard() {
                     <small>Inicio</small>
                     {fmtDate(project.startDate)}
                   </span>
+                  <span className={`status-pill ${project.status}`}>{statusLabels[project.status]}</span>
                   <span className="stat">
                     <small>Coste</small>
                     {fmt(project.cost)}
@@ -403,6 +440,20 @@ export default function Dashboard() {
                 </button>
 
                 <div className="project-actions">
+                  <label className="status-control">
+                    <span>Estado</span>
+                    <select
+                      value={project.status}
+                      disabled={changingStatusId === project.id}
+                      onChange={(event) => changeProjectStatus(project, event.target.value as ProjectStatus)}
+                    >
+                      {statusOptions.map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <Link href={`/licitacion/${project.id}`} className="project-link-action">
                     Licitación
                   </Link>

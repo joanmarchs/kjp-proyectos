@@ -333,7 +333,7 @@ h1 em {
 
 .project-head {
   display: grid;
-  grid-template-columns: 18px minmax(170px, 1fr) minmax(94px, 118px) repeat(3, minmax(110px, 140px)) 120px;
+  grid-template-columns: 18px minmax(170px, 1fr) minmax(94px, 118px) minmax(138px, 170px) repeat(3, minmax(110px, 140px)) 120px;
   align-items: center;
   gap: 16px;
   width: 100%;
@@ -352,9 +352,76 @@ h1 em {
 
 .project-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 0 20px 14px 55px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.status-pill.fase_estudio {
+  border-color: rgba(185, 245, 110, 0.58);
+  background: rgba(185, 245, 110, 0.11);
+  color: var(--accent);
+}
+
+.status-pill.pendiente_adjudicar {
+  border-color: rgba(245, 200, 66, 0.62);
+  background: rgba(245, 200, 66, 0.11);
+  color: var(--warn);
+}
+
+.status-pill.desestimado {
+  border-color: rgba(255, 107, 74, 0.66);
+  background: rgba(255, 107, 74, 0.1);
+  color: var(--bad);
+}
+
+.status-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.status-control select {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  outline: 0;
+  padding: 0 8px;
+}
+
+.status-control select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(185, 245, 110, 0.14);
 }
 
 .project-actions button {
@@ -594,6 +661,7 @@ td i b {
   }
 
   .stat,
+  .status-pill,
   .margin {
     grid-column: 2;
     text-align: left;

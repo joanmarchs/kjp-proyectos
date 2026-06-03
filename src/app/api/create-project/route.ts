@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         profit: 0,
         suppliers: [],
         categories: [],
-        raw: project,
+        raw: { ...project, status: "fase_estudio" },
         synced_at: new Date().toISOString()
       };
       let { error } = await supabase.from("project_costs_2026").upsert(row, { onConflict: "id" });

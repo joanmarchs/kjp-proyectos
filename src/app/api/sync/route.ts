@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { fetchProjectCostsFromHolded } from "@/lib/holded";
 import { isAuthenticated } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import type { ProjectStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+function projectStatus(value: unknown): ProjectStatus {
+  return value === "pendiente_adjudicar" || value === "desestimado" || value === "fase_estudio" ? value : "fase_estudio";
+}
 
 export async function POST() {
   if (!(await isAuthenticated())) {
@@ -22,7 +27,14 @@ export async function POST() {
       });
     }
 
-    const rows = projects.map((project) => ({
+    const { data: existingRows } = await supabase.from("project_costs_2026").select("id,raw");
+    const existingStatuses = new Map(
+      (existingRows ?? []).map((row: { id: string; raw?: { status?: ProjectStatus } | null }) => [row.id, projectStatus(row.raw?.status)])
+    );
+
+    const projectsWithStatus = projects.map((project) => ({ ...project, status: existingStatuses.get(project.id) ?? "fase_estudio" }));
+
+    const rows = projectsWithStatus.map((project) => ({
       id: project.id,
       name: project.name,
       start_date: project.startDate,
@@ -42,10 +54,10 @@ export async function POST() {
       error = fallback.error;
     }
     if (error) {
-      return NextResponse.json({ projects, persisted: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ projects: projectsWithStatus, persisted: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ projects, persisted: true });
+    return NextResponse.json({ projects: projectsWithStatus, persisted: true });
   } catch (error) {
     return NextResponse.json(
       { projects: [], persisted: false, error: error instanceof Error ? error.message : "Error desconocido" },

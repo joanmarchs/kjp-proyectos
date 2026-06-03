@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchProjectCostsFromHolded } from "@/lib/holded";
 import { isAuthenticated } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import type { ProjectCost } from "@/lib/types";
+import type { ProjectCost, ProjectStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +15,20 @@ type DbProject = {
   profit: number | string;
   suppliers: ProjectCost["suppliers"];
   categories: ProjectCost["categories"];
-  raw?: Partial<ProjectCost> | null;
+  raw?: (Partial<ProjectCost> & { status?: ProjectStatus }) | null;
   synced_at: string;
 };
+
+function projectStatus(value: unknown): ProjectStatus {
+  return value === "pendiente_adjudicar" || value === "desestimado" || value === "fase_estudio" ? value : "fase_estudio";
+}
 
 function fromDb(row: DbProject): ProjectCost {
   return {
     id: row.id,
     name: row.name,
     startDate: row.start_date ?? row.raw?.startDate ?? null,
+    status: projectStatus(row.raw?.status),
     cost: Number(row.cost),
     sales: Number(row.sales),
     profit: Number(row.profit),
