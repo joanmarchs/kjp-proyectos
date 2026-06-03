@@ -32,6 +32,14 @@ function fmt(value: number) {
   return formatter.format(value);
 }
 
+function fmtPercent(value: number) {
+  return new Intl.NumberFormat("es-ES", {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  }).format(value / 100);
+}
+
 function fmtDate(value: string | null) {
   if (!value) return "Sin fecha";
   return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T00:00:00`));
@@ -294,6 +302,7 @@ export default function Dashboard() {
       ),
     [visible]
   );
+  const summaryMargin = summary.sales > 0 ? (summary.profit / summary.sales) * 100 : 0;
 
   return (
     <main>
@@ -415,6 +424,10 @@ export default function Dashboard() {
         <div>
           <span>Proyectos</span>
           <strong>{visible.length}</strong>
+        </div>
+        <div>
+          <span>Beneficio % ventas</span>
+          <strong className={summaryMargin < 0 ? "bad" : "good"}>{summary.sales > 0 ? fmtPercent(summaryMargin) : "-"}</strong>
         </div>
       </section>
 
