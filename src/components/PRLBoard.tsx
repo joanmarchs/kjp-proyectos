@@ -1,56 +1,32 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Check, Edit3, FileUp, Mail, Search, Trash2, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bell,
+  Building2,
+  Check,
+  ChevronDown,
+  ClipboardList,
+  Edit3,
+  FileText,
+  GraduationCap,
+  Home,
+  Mail,
+  Plus,
+  Search,
+  Settings,
+  ShieldCheck,
+  Trash2,
+  Users,
+  X
+} from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 type DocumentStatus = "pendiente" | "revision" | "aprobado" | "rechazado" | "caducado" | "no_aplica";
-type DocumentCategory = "empresa" | "trabajador" | "maquinaria" | "obra";
-type TabKey = "empresas" | "trabajadores" | "maquinaria" | "obra" | "alertas";
-
-type PrlCompany = {
-  id: string;
-  name: string;
-  cif: string;
-  contact: string;
-  email: string;
-  role: string;
-};
-
-type PrlWorker = {
-  id: string;
-  name: string;
-  dni: string;
-  company: string;
-  position: string;
-};
-
-type PrlMachine = {
-  id: string;
-  name: string;
-  type: string;
-  company: string;
-  serial: string;
-  nextReview: string;
-};
-
-type PrlDocument = {
-  id: string;
-  type: string;
-  category: DocumentCategory;
-  owner: string;
-  fileName: string;
-  status: DocumentStatus;
-  uploadedAt: string;
-  issueDate: string;
-  expiryDate: string;
-  uploadedBy: string;
-  reviewedBy: string;
-  reviewedAt: string;
-  internalComment: string;
-  rejectionComment: string;
-};
+type AdminTab = "estructura" | "empresas" | "trabajadores" | "documentacion" | "accesos";
 
 type PrlInvitation = {
   id: string;
@@ -61,7 +37,8 @@ type PrlInvitation = {
   role: string | null;
   status: string;
   token: string;
-  created_at: string;
+  contractor_id?: string | null;
+  accepted_at?: string | null;
   email_sent_at?: string | null;
   email_error?: string | null;
 };
@@ -71,280 +48,133 @@ type RemotePrlDocument = {
   company_name: string;
   company_email: string;
   document_type: string;
+  owner_type?: "company" | "worker" | null;
+  owner_id?: string | null;
+  owner_name?: string | null;
   file_name: string;
   status: DocumentStatus;
   expiry_date: string | null;
   signed_url?: string | null;
-  rejection_comment?: string | null;
 };
 
-type PrlState = {
-  companies: PrlCompany[];
+type PrlWorker = {
+  id: string;
+  contractor_id: string | null;
+  invitation_id: string | null;
+  full_name: string;
+  dni: string | null;
+  position: string | null;
+};
+
+type PrlContractor = {
+  id: string;
+  email: string;
+  company_name: string;
+  company_cif: string | null;
+  contact_name: string | null;
+  contractor_type?: "empresa" | "autonomo";
+};
+
+type PrlPayload = {
+  invitations: PrlInvitation[];
+  documents: RemotePrlDocument[];
   workers: PrlWorker[];
-  machines: PrlMachine[];
-  documents: PrlDocument[];
+  contractors: PrlContractor[];
 };
 
-const tabs: Array<[TabKey, string]> = [
+const navItems = [
+  ["estructura", "Estructura", Building2],
+  ["empresas", "Empresas", Home],
+  ["trabajadores", "Trabajadores", Users],
+  ["documentacion", "Documentacion", FileText],
+  ["accesos", "Accesos", ShieldCheck],
+  ["formacion", "Formacion", GraduationCap],
+  ["incidencias", "Incidencias", AlertCircle],
+  ["configuracion", "Configuracion", Settings]
+] as const;
+
+const tabs: Array<[AdminTab, string]> = [
+  ["estructura", "Arbol de la obra"],
   ["empresas", "Empresas"],
   ["trabajadores", "Trabajadores"],
-  ["maquinaria", "Maquinaria / Equipos"],
-  ["obra", "Documentos de obra"],
-  ["alertas", "Alertas"]
+  ["documentacion", "Documentacion"],
+  ["accesos", "Accesos"]
 ];
 
-const statusLabels: Record<DocumentStatus, string> = {
-  pendiente: "Pendiente de subir",
-  revision: "En revisión",
+const statusLabels: Record<string, string> = {
+  invited: "Invitado",
+  documents_uploaded: "Docs enviados",
+  pendiente: "Pendiente",
+  revision: "En revision",
   aprobado: "Aprobado",
   rechazado: "Rechazado",
   caducado: "Caducado",
   no_aplica: "No aplica"
 };
 
-const categoryLabels: Record<DocumentCategory, string> = {
-  empresa: "Empresa",
-  trabajador: "Trabajador",
-  maquinaria: "Maquinaria",
-  obra: "Obra"
-};
-
-const defaultDocumentTypes: Record<DocumentCategory, string[]> = {
-  empresa: [
-    "CIF",
-    "Seguro responsabilidad civil",
-    "Certificado AEAT",
-    "Certificado Seguridad Social",
-    "Servicio de prevención",
-    "Evaluación de riesgos",
-    "Planificación preventiva",
-    "Adhesión al Plan de Seguridad y Salud"
-  ],
-  trabajador: [
-    "DNI/NIE",
-    "Alta Seguridad Social",
-    "Formación PRL",
-    "Reconocimiento médico",
-    "Entrega de EPIs",
-    "Información de riesgos",
-    "Autorizaciones específicas"
-  ],
-  maquinaria: ["Marcado CE", "Manual de instrucciones", "Revisión/mantenimiento", "Seguro", "Autorización del operador"],
-  obra: [
-    "Plan de Seguridad y Salud",
-    "Acta aprobación PSS",
-    "Apertura centro de trabajo",
-    "Libro de subcontratación",
-    "Designación CSS",
-    "Actas de coordinación"
-  ]
-};
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+function badgeClass(status: string) {
+  if (status === "aprobado" || status === "documents_uploaded") return "aprobado";
+  if (status === "rechazado" || status === "caducado") return "rechazado";
+  return "revision";
 }
 
-function uid(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
-
-function daysUntil(date: string) {
-  if (!date) return null;
-  const end = new Date(`${date}T00:00:00`).getTime();
-  const now = new Date(`${todayIso()}T00:00:00`).getTime();
-  return Math.ceil((end - now) / 86400000);
-}
-
-function effectiveStatus(document: PrlDocument): DocumentStatus {
-  const remaining = daysUntil(document.expiryDate);
-  if (document.status === "aprobado" && remaining !== null && remaining < 0) return "caducado";
-  return document.status;
-}
-
-function initialState(projectName: string): PrlState {
-  return {
-    companies: [
-      {
-        id: uid("company"),
-        name: "Subcontrata pendiente",
-        cif: "",
-        contact: "",
-        email: "",
-        role: "Pendiente definir"
-      }
-    ],
-    workers: [],
-    machines: [],
-    documents: defaultDocumentTypes.obra.map((type) => ({
-      id: uid("doc"),
-      type,
-      category: "obra",
-      owner: projectName,
-      fileName: "",
-      status: "pendiente",
-      uploadedAt: "",
-      issueDate: "",
-      expiryDate: "",
-      uploadedBy: "",
-      reviewedBy: "",
-      reviewedAt: "",
-      internalComment: "",
-      rejectionComment: ""
-    }))
-  };
-}
-
-function ownerOptions(state: PrlState, category: DocumentCategory, projectName: string) {
-  if (category === "empresa") return state.companies.map((company) => company.name);
-  if (category === "trabajador") return state.workers.map((worker) => worker.name);
-  if (category === "maquinaria") return state.machines.map((machine) => machine.name);
-  return [projectName];
+function companyTone(index: number) {
+  return ["green", "orange", "purple", "teal"][index % 4];
 }
 
 export default function PRLBoard({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const storageKey = `kjp-prl-${projectId}`;
-  const [state, setState] = useState<PrlState>(() => initialState(projectName));
-  const [tab, setTab] = useState<TabKey>("empresas");
+  const [tab, setTab] = useState<AdminTab>("estructura");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all");
-  const [category, setCategory] = useState<DocumentCategory>("empresa");
-  const [docType, setDocType] = useState(defaultDocumentTypes.empresa[0]);
-  const [owner, setOwner] = useState("");
-  const [issueDate, setIssueDate] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [invitations, setInvitations] = useState<PrlInvitation[]>([]);
-  const [remoteDocuments, setRemoteDocuments] = useState<RemotePrlDocument[]>([]);
+  const [payload, setPayload] = useState<PrlPayload>({ invitations: [], documents: [], workers: [], contractors: [] });
+  const [message, setMessage] = useState("");
   const [inviteCompany, setInviteCompany] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteCif, setInviteCif] = useState("");
   const [inviteContact, setInviteContact] = useState("");
   const [inviteRole, setInviteRole] = useState("");
-  const [inviteMessage, setInviteMessage] = useState("");
   const [editingInvitationId, setEditingInvitationId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey);
-    if (saved) setState(JSON.parse(saved) as PrlState);
-  }, [storageKey]);
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
-  }, [state, storageKey]);
 
   async function loadRemotePrl() {
     const response = await fetch(`/api/prl/project/${projectId}`);
-    const payload = await response.json();
+    const data = await response.json();
     if (!response.ok) {
-      setInviteMessage(payload.error ?? "No se pudo cargar PRL de Supabase.");
+      setMessage(data.error ?? "No se pudo cargar PRL.");
       return;
     }
-    setInvitations(payload.invitations ?? []);
-    setRemoteDocuments(payload.documents ?? []);
+    setPayload({
+      invitations: data.invitations ?? [],
+      documents: data.documents ?? [],
+      workers: data.workers ?? [],
+      contractors: data.contractors ?? []
+    });
   }
 
   useEffect(() => {
-    loadRemotePrl().catch((error) => setInviteMessage(error instanceof Error ? error.message : "No se pudo cargar PRL."));
+    loadRemotePrl().catch((error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar PRL."));
   }, [projectId]);
 
-  useEffect(() => {
-    setDocType(defaultDocumentTypes[category][0]);
-    setOwner(ownerOptions(state, category, projectName)[0] ?? "");
-  }, [category, projectName, state.companies, state.machines, state.workers]);
-
-  const documents = useMemo(
-    () =>
-      state.documents
-        .map((document) => ({ ...document, status: effectiveStatus(document) }))
-        .filter((document) => (tab === "obra" ? document.category === "obra" : tab === "alertas" ? true : document.category === tab.slice(0, -1)))
-        .filter((document) => (statusFilter === "all" ? true : document.status === statusFilter))
-        .filter((document) => {
-          const term = query.trim().toLowerCase();
-          if (!term) return true;
-          return [document.type, document.owner, document.fileName, document.internalComment, document.rejectionComment].some((value) =>
-            value.toLowerCase().includes(term)
-          );
-        }),
-    [query, state.documents, statusFilter, tab]
-  );
-
-  const alerts = useMemo(
-    () =>
-      state.documents
-        .map((document) => ({ ...document, status: effectiveStatus(document), remaining: daysUntil(document.expiryDate) }))
-        .filter(
-          (document) =>
-            document.status === "caducado" ||
-            document.status === "rechazado" ||
-            document.status === "pendiente" ||
-            document.status === "revision" ||
-            (document.status === "aprobado" && document.remaining !== null && document.remaining >= 0 && document.remaining <= 30)
-        ),
-    [state.documents]
-  );
+  const filteredInvitations = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return payload.invitations;
+    return payload.invitations.filter((invitation) =>
+      [invitation.company_name, invitation.company_email, invitation.role ?? "", invitation.contact_name ?? ""].some((value) =>
+        value.toLowerCase().includes(term)
+      )
+    );
+  }, [payload.invitations, query]);
 
   const totals = useMemo(() => {
-    const docs = state.documents.map((document) => ({ ...document, status: effectiveStatus(document) }));
-    const approved = docs.filter((document) => document.status === "aprobado" || document.status === "no_aplica").length;
+    const approved = payload.documents.filter((document) => document.status === "aprobado").length;
     return {
-      completion: docs.length ? Math.round((approved / docs.length) * 100) : 0,
-      pending: docs.filter((document) => document.status === "pendiente" || document.status === "revision").length,
-      rejected: docs.filter((document) => document.status === "rechazado").length,
-      expired: docs.filter((document) => document.status === "caducado").length,
-      soon: alerts.filter((document) => document.status === "aprobado" && document.remaining !== null && document.remaining <= 30).length
+      companies: payload.invitations.length,
+      subcontractors: Math.max(payload.invitations.length - 1, 0),
+      workers: payload.workers.length,
+      documents: payload.documents.length,
+      pending: payload.documents.filter((document) => document.status === "revision" || document.status === "pendiente").length,
+      rejected: payload.documents.filter((document) => document.status === "rechazado").length,
+      completion: payload.documents.length ? Math.round((approved / payload.documents.length) * 100) : 0
     };
-  }, [alerts, state.documents]);
-
-  function addDocument(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const selectedOwner = owner || ownerOptions(state, category, projectName)[0] || projectName;
-    setState((current) => ({
-      ...current,
-      documents: [
-        {
-          id: uid("doc"),
-          type: docType,
-          category,
-          owner: selectedOwner,
-          fileName,
-          status: fileName ? "revision" : "pendiente",
-          uploadedAt: fileName ? todayIso() : "",
-          issueDate,
-          expiryDate,
-          uploadedBy: fileName ? "KJP" : "",
-          reviewedBy: "",
-          reviewedAt: "",
-          internalComment: "",
-          rejectionComment: ""
-        },
-        ...current.documents
-      ]
-    }));
-    setIssueDate("");
-    setExpiryDate("");
-    setFileName("");
-  }
-
-  function updateDocument(id: string, patch: Partial<PrlDocument>) {
-    setState((current) => ({
-      ...current,
-      documents: current.documents.map((document) => (document.id === id ? { ...document, ...patch } : document))
-    }));
-  }
-
-  function approveDocument(id: string) {
-    updateDocument(id, { status: "aprobado", reviewedBy: "KJP", reviewedAt: todayIso(), rejectionComment: "" });
-  }
-
-  function rejectDocument(id: string) {
-    const comment = window.prompt("Comentario obligatorio de rechazo");
-    if (!comment?.trim()) return;
-    updateDocument(id, { status: "rechazado", reviewedBy: "KJP", reviewedAt: todayIso(), rejectionComment: comment.trim() });
-  }
-
-  function deleteDocument(id: string) {
-    setState((current) => ({ ...current, documents: current.documents.filter((document) => document.id !== id) }));
-  }
+  }, [payload]);
 
   function resetInvitationForm() {
     setInviteCompany("");
@@ -362,12 +192,12 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     setInviteCif(invitation.company_cif ?? "");
     setInviteContact(invitation.contact_name ?? "");
     setInviteRole(invitation.role ?? "");
-    setInviteMessage("Editando invitación. Guarda los cambios cuando termines.");
+    setMessage("Editando empresa invitada.");
   }
 
   async function saveInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setInviteMessage("");
+    setMessage("");
     const response = await fetch("/api/prl/invitations", {
       method: editingInvitationId ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
@@ -382,54 +212,44 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
         role: inviteRole
       })
     });
-    const payload = await response.json();
+    const data = await response.json();
     if (!response.ok) {
-      setInviteMessage(payload.error ?? "No se pudo guardar la invitación.");
+      setMessage(data.error ?? "No se pudo guardar la invitacion.");
       return;
     }
     const wasEditing = Boolean(editingInvitationId);
     resetInvitationForm();
-    if (wasEditing) {
-      setInviteMessage("Invitación actualizada.");
-    } else if (payload.emailSent) {
-      setInviteMessage(`Invitación creada y email enviado desde ${payload.mailFrom ?? "PRL@kjpretail.com"}.`);
-    } else {
-      setInviteMessage(`Invitación creada, pero el email no se pudo enviar: ${payload.emailError ?? "revisa Microsoft Graph Mail.Send."}`);
-    }
+    setMessage(wasEditing ? "Empresa actualizada." : data.emailSent ? "Invitacion enviada por email." : `Invitacion creada, email pendiente: ${data.emailError ?? ""}`);
     await loadRemotePrl();
   }
 
   async function deleteInvitation(invitation: PrlInvitation) {
-    const ok = window.confirm(`Eliminar la invitación de ${invitation.company_name}?`);
-    if (!ok) return;
+    if (!window.confirm(`Eliminar ${invitation.company_name}?`)) return;
     const response = await fetch("/api/prl/invitations", {
       method: "DELETE",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: invitation.id })
     });
-    const payload = await response.json();
+    const data = await response.json();
     if (!response.ok) {
-      setInviteMessage(payload.error ?? "No se pudo eliminar la invitación.");
+      setMessage(data.error ?? "No se pudo eliminar.");
       return;
     }
-    if (editingInvitationId === invitation.id) resetInvitationForm();
-    setInviteMessage("Invitación eliminada.");
+    setMessage("Empresa eliminada.");
     await loadRemotePrl();
   }
 
   async function resendInvitation(invitation: PrlInvitation) {
-    setInviteMessage("");
     const response = await fetch(`/api/prl/invitations/${invitation.id}/resend`, { method: "POST" });
-    const payload = await response.json();
-    if (!response.ok || !payload.emailSent) {
-      setInviteMessage(payload.emailError ?? payload.error ?? "No se pudo reenviar el email.");
+    const data = await response.json();
+    if (!response.ok || !data.emailSent) {
+      setMessage(data.emailError ?? data.error ?? "No se pudo reenviar.");
       return;
     }
-    setInviteMessage(`Email reenviado desde ${payload.mailFrom ?? "PRL@kjpretail.com"}.`);
-    await loadRemotePrl();
+    setMessage("Email reenviado.");
   }
 
-  async function reviewRemoteDocument(id: string, status: "aprobado" | "rechazado") {
+  async function reviewDocument(id: string, status: "aprobado" | "rechazado") {
     const rejectionComment = status === "rechazado" ? window.prompt("Comentario obligatorio de rechazo") : "";
     if (status === "rechazado" && !rejectionComment?.trim()) return;
     const response = await fetch(`/api/prl/documents/${id}`, {
@@ -437,359 +257,289 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status, rejectionComment })
     });
-    const payload = await response.json();
+    const data = await response.json();
     if (!response.ok) {
-      setInviteMessage(payload.error ?? "No se pudo revisar el documento.");
+      setMessage(data.error ?? "No se pudo revisar el documento.");
       return;
     }
     await loadRemotePrl();
   }
 
   return (
-    <main className="prl-page">
-      <header className="prl-header">
-        <div>
-          <Link href="/" className="back-link">
-            <ArrowLeft size={16} />
-            Volver a proyectos
-          </Link>
-          <p className="eyebrow clean">Documentación PRL / CAE</p>
-          <h1>{projectName}</h1>
+    <main className="prl-admin-shell">
+      <aside className="prl-admin-sidebar">
+        <div className="prl-brand">
+          <ShieldCheck size={34} />
+          <div>
+            <strong>PRL Gestion</strong>
+            <span>Contrata General</span>
+          </div>
         </div>
-        <div className="prl-search">
-          <Search size={16} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar documento, empresa o trabajador" />
-        </div>
-      </header>
-
-      <section className="prl-summary">
-        <SummaryCard label="% documentación" value={`${totals.completion}%`} tone={totals.completion >= 90 ? "ok" : "warn"} />
-        <SummaryCard label="Empresas" value={state.companies.length.toString()} />
-        <SummaryCard label="Trabajadores" value={state.workers.length.toString()} />
-        <SummaryCard label="Pendientes" value={totals.pending.toString()} tone="warn" />
-        <SummaryCard label="Rechazados" value={totals.rejected.toString()} tone="bad" />
-        <SummaryCard label="Caducados" value={totals.expired.toString()} tone="bad" />
-        <SummaryCard label="Próx. caducar" value={totals.soon.toString()} tone="warn" />
-      </section>
-
-      <section className="prl-tabs">
-        {tabs.map(([key, label]) => (
-          <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-            {label}
-          </button>
-        ))}
-      </section>
-
-      <section className="prl-workspace">
-        <aside className="prl-panel">
-          <h2>Invitar empresa / autónomo</h2>
-          <form className="prl-upload" onSubmit={saveInvitation}>
-            <label>
-              Empresa o autónomo
-              <input value={inviteCompany} onChange={(event) => setInviteCompany(event.target.value)} placeholder="Nombre fiscal o comercial" />
-            </label>
-            <label>
-              Email acceso
-              <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="empresa@email.com" />
-            </label>
-            <label>
-              CIF / NIF
-              <input value={inviteCif} onChange={(event) => setInviteCif(event.target.value)} />
-            </label>
-            <label>
-              Contacto
-              <input value={inviteContact} onChange={(event) => setInviteContact(event.target.value)} />
-            </label>
-            <label>
-              Rol en obra
-              <input value={inviteRole} onChange={(event) => setInviteRole(event.target.value)} placeholder="Electricidad, clima, pintura..." />
-            </label>
-            <button type="submit">{editingInvitationId ? "Guardar cambios" : "Crear invitación PRL"}</button>
-            {editingInvitationId ? (
-              <button type="button" className="secondary" onClick={resetInvitationForm}>
-                Cancelar edición
-              </button>
-            ) : null}
-          </form>
-          {inviteMessage ? <p className="prl-inline-message">{inviteMessage}</p> : null}
-
-          <h2>Subir / registrar documento</h2>
-          <form className="prl-upload" onSubmit={addDocument}>
-            <label>
-              Categoría
-              <select value={category} onChange={(event) => setCategory(event.target.value as DocumentCategory)}>
-                {Object.entries(categoryLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Tipo documento
-              <select value={docType} onChange={(event) => setDocType(event.target.value)}>
-                {defaultDocumentTypes[category].map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Relacionado con
-              <input value={owner} onChange={(event) => setOwner(event.target.value)} placeholder="Empresa, trabajador, equipo u obra" />
-            </label>
-            <label>
-              Fecha emisión
-              <input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} />
-            </label>
-            <label>
-              Fecha caducidad
-              <input type="date" value={expiryDate} onChange={(event) => setExpiryDate(event.target.value)} />
-            </label>
-            <label>
-              Archivo
-              <input type="file" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} />
-            </label>
-            <button type="submit">
-              <FileUp size={16} />
-              Registrar documento
+        <nav>
+          {navItems.map(([key, label, Icon]) => (
+            <button key={key} className={tab === key ? "active" : ""} onClick={() => tabs.some(([tabKey]) => tabKey === key) && setTab(key as AdminTab)}>
+              <Icon size={19} />
+              {label}
             </button>
-          </form>
-        </aside>
+          ))}
+        </nav>
+        <Link href="/" className="prl-sidebar-help">
+          <ArrowLeft size={16} />
+          Volver a proyectos
+        </Link>
+      </aside>
 
-        <section className="prl-panel prl-main-panel">
-          <div className="prl-admin-grid">
-            <div className="prl-data-block">
-              <h2>Empresas invitadas</h2>
-              <div className="prl-admin-list">
-                {invitations.length === 0 ? <div className="prl-empty">Sin invitaciones enviadas.</div> : null}
-                {invitations.map((invitation) => (
-                  <article key={invitation.id}>
-                    <strong>{invitation.company_name}</strong>
-                    <span>{invitation.company_email}</span>
-                    <span>{invitation.role || "Rol pendiente"}</span>
-                    <span className="prl-badge revision">{invitation.status}</span>
-                    <div className="prl-admin-actions">
-                      <button type="button" onClick={() => startEditInvitation(invitation)}>
-                        <Edit3 size={14} />
-                        Editar
-                      </button>
-                      <button type="button" onClick={() => resendInvitation(invitation)}>
-                        <Mail size={14} />
-                        Reenviar
-                      </button>
-                      <button type="button" className="danger" onClick={() => deleteInvitation(invitation)}>
-                        <Trash2 size={14} />
-                        Eliminar
-                      </button>
-                    </div>
-                    {invitation.email_error ? <span className="prl-mail-error">Email pendiente</span> : null}
-                  </article>
-                ))}
-              </div>
+      <section className="prl-admin-content">
+        <header className="prl-admin-topbar">
+          <div className="prl-admin-search">
+            <Search size={16} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar empresa, trabajador o documento" />
+          </div>
+          <div className="prl-admin-user">
+            <Bell size={19} />
+            <span className="notification-dot">3</span>
+            <div className="avatar">CG</div>
+            <div>
+              <strong>Contrata General</strong>
+              <span>Administrador</span>
             </div>
-            <div className="prl-data-block">
-              <h2>Documentos subidos por empresas</h2>
-              <div className="prl-admin-list">
-                {remoteDocuments.length === 0 ? <div className="prl-empty">Todavía no hay documentos externos.</div> : null}
-                {remoteDocuments.map((document) => (
-                  <article key={document.id}>
-                    <strong>{document.document_type}</strong>
-                    <span>{document.company_name}</span>
-                    <span>{document.file_name}</span>
-                    <span className={`prl-badge ${document.status}`}>{statusLabels[document.status] ?? document.status}</span>
-                    {document.signed_url ? <a href={document.signed_url} target="_blank">Ver</a> : null}
-                    <button onClick={() => reviewRemoteDocument(document.id, "aprobado")}>Aprobar</button>
-                    <button onClick={() => reviewRemoteDocument(document.id, "rechazado")}>Rechazar</button>
-                  </article>
-                ))}
-              </div>
+            <ChevronDown size={16} />
+          </div>
+        </header>
+
+        <div className="prl-admin-main">
+          <div className="prl-admin-titlebar">
+            <div>
+              <h1>Estructura de la obra</h1>
+              <p>{projectName} · Visualiza y gestiona empresas, trabajadores, accesos y documentacion PRL.</p>
+            </div>
+            <div className="prl-admin-actions-main">
+              <button className="primary" onClick={() => setTab("empresas")}>
+                <Plus size={16} />
+                Anadir
+              </button>
+              <button onClick={() => setTab("empresas")}>
+                <Edit3 size={16} />
+                Editar
+              </button>
             </div>
           </div>
-          {tab === "empresas" ? <CompaniesTable companies={state.companies} documents={state.documents} /> : null}
-          {tab === "trabajadores" ? <WorkersTable workers={state.workers} documents={state.documents} /> : null}
-          {tab === "maquinaria" ? <MachinesTable machines={state.machines} documents={state.documents} /> : null}
-          {tab === "alertas" ? <AlertsTable alerts={alerts} /> : null}
-          {tab !== "alertas" ? (
-            <>
-              <div className="prl-table-head">
-                <h2>{tab === "obra" ? "Documentos de obra" : "Documentos vinculados"}</h2>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as DocumentStatus | "all")}>
-                  <option value="all">Todos los estados</option>
-                  {Object.entries(statusLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <DocumentsTable documents={documents} onApprove={approveDocument} onReject={rejectDocument} onDelete={deleteDocument} />
-            </>
+
+          <nav className="prl-admin-tabs">
+            {tabs.map(([key, label]) => (
+              <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {message ? <div className="prl-admin-notice">{message}</div> : null}
+
+          {tab === "estructura" ? (
+            <StructureView invitations={filteredInvitations} workers={payload.workers} totals={totals} />
           ) : null}
-        </section>
+          {tab === "empresas" ? (
+            <CompaniesView
+              invitations={filteredInvitations}
+              inviteCompany={inviteCompany}
+              inviteEmail={inviteEmail}
+              inviteCif={inviteCif}
+              inviteContact={inviteContact}
+              inviteRole={inviteRole}
+              editingInvitationId={editingInvitationId}
+              setInviteCompany={setInviteCompany}
+              setInviteEmail={setInviteEmail}
+              setInviteCif={setInviteCif}
+              setInviteContact={setInviteContact}
+              setInviteRole={setInviteRole}
+              saveInvitation={saveInvitation}
+              resetInvitationForm={resetInvitationForm}
+              startEditInvitation={startEditInvitation}
+              resendInvitation={resendInvitation}
+              deleteInvitation={deleteInvitation}
+            />
+          ) : null}
+          {tab === "trabajadores" ? <WorkersView workers={payload.workers} invitations={payload.invitations} documents={payload.documents} /> : null}
+          {tab === "documentacion" ? <DocumentsView documents={payload.documents} reviewDocument={reviewDocument} /> : null}
+          {tab === "accesos" ? <AccessView invitations={filteredInvitations} /> : null}
+        </div>
       </section>
     </main>
   );
 }
 
-function SummaryCard({ label, value, tone = "" }: { label: string; value: string; tone?: "ok" | "warn" | "bad" | "" }) {
+function StructureView({ invitations, workers, totals }: { invitations: PrlInvitation[]; workers: PrlWorker[]; totals: { companies: number; subcontractors: number; workers: number } }) {
   return (
-    <div className={`prl-summary-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function statusCounts(documents: PrlDocument[], owner: string) {
-  const related = documents.filter((document) => document.owner === owner).map((document) => ({ ...document, status: effectiveStatus(document) }));
-  return {
-    required: related.length,
-    approved: related.filter((document) => document.status === "aprobado" || document.status === "no_aplica").length,
-    pending: related.filter((document) => document.status === "pendiente" || document.status === "revision").length,
-    expired: related.filter((document) => document.status === "caducado").length
-  };
-}
-
-function CompaniesTable({ companies, documents }: { companies: PrlCompany[]; documents: PrlDocument[] }) {
-  return (
-    <DataTable
-      title="Empresas"
-      headers={["Nombre", "CIF", "Contacto", "Rol", "Estado", "Docs"]}
-      rows={companies.map((company) => {
-        const counts = statusCounts(documents, company.name);
-        return [company.name, company.cif || "-", company.contact || company.email || "-", company.role, prlStatus(counts), `${counts.approved}/${counts.required}`];
-      })}
-    />
-  );
-}
-
-function WorkersTable({ workers, documents }: { workers: PrlWorker[]; documents: PrlDocument[] }) {
-  return (
-    <DataTable
-      title="Trabajadores"
-      headers={["Nombre", "DNI/NIE", "Empresa", "Puesto", "Estado", "Pendientes"]}
-      rows={workers.map((worker) => {
-        const counts = statusCounts(documents, worker.name);
-        return [worker.name, worker.dni || "-", worker.company, worker.position, prlStatus(counts), counts.pending.toString()];
-      })}
-      empty="Sin trabajadores registrados todavía."
-    />
-  );
-}
-
-function MachinesTable({ machines, documents }: { machines: PrlMachine[]; documents: PrlDocument[] }) {
-  return (
-    <DataTable
-      title="Maquinaria / Equipos"
-      headers={["Equipo", "Tipo", "Empresa", "Serie/Matrícula", "Próx. revisión", "Estado"]}
-      rows={machines.map((machine) => {
-        const counts = statusCounts(documents, machine.name);
-        return [machine.name, machine.type, machine.company, machine.serial || "-", machine.nextReview || "-", prlStatus(counts)];
-      })}
-      empty="Sin maquinaria registrada todavía."
-    />
-  );
-}
-
-function DataTable({ title, headers, rows, empty = "Sin registros." }: { title: string; headers: string[]; rows: string[][]; empty?: string }) {
-  return (
-    <div className="prl-data-block">
-      <h2>{title}</h2>
-      <div className="prl-table">
-        <div className="prl-table-row head" style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(120px, 1fr))` }}>
-          {headers.map((header) => (
-            <span key={header}>{header}</span>
-          ))}
-        </div>
-        {rows.length ? (
-          rows.map((row, index) => (
-            <div className="prl-table-row" key={`${title}-${index}`} style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(120px, 1fr))` }}>
-              {row.map((cell, cellIndex) => (
-                <span key={`${cell}-${cellIndex}`}>{cell}</span>
-              ))}
-            </div>
-          ))
-        ) : (
-          <div className="prl-empty">{empty}</div>
-        )}
+    <section className="structure-card">
+      <div className="org-root">
+        <OrgCard title="CONTRATA GENERAL" subtitle="KJP Retail Construction" tone="blue" meta="Responsables: jm / knarik" />
       </div>
-    </div>
+      <div className="org-branches">
+        {invitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
+        {invitations.map((invitation, index) => {
+          const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id || worker.contractor_id === invitation.contractor_id);
+          return (
+            <div className="org-column" key={invitation.id}>
+              <OrgCard
+                title={invitation.company_name}
+                subtitle={invitation.role || invitation.company_email}
+                tone={companyTone(index)}
+                meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
+              />
+              <div className="org-subcard">
+                <strong>{linkedWorkers.length}</strong>
+                <span>Trabajadores</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <footer className="structure-footer">
+        <span><i className="dot blue" />Contrata General</span>
+        <span><i className="dot green" />Empresa Principal</span>
+        <span><i className="dot orange" />Subcontrata</span>
+        <strong><Building2 size={18} />{totals.companies} Empresas</strong>
+        <strong><ClipboardList size={18} />{totals.subcontractors} Subcontratas</strong>
+        <strong><Users size={18} />{totals.workers} Trabajadores</strong>
+      </footer>
+    </section>
   );
 }
 
-function prlStatus(counts: { required: number; approved: number; pending: number; expired: number }) {
-  if (counts.required === 0) return "No aplica";
-  if (counts.expired > 0) return "Caducado";
-  if (counts.pending > 0) return "Pendiente";
-  if (counts.approved === counts.required) return "Completo";
-  return "En revisión";
+function OrgCard({ title, subtitle, tone, meta }: { title: string; subtitle: string; tone: string; meta: string }) {
+  return (
+    <article className={`org-card ${tone}`}>
+      <div className="org-icon"><Building2 size={26} /></div>
+      <div>
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+        <small><Users size={12} /> {meta}</small>
+      </div>
+      <button><Plus size={16} /></button>
+    </article>
+  );
 }
 
-function DocumentsTable({
-  documents,
-  onApprove,
-  onReject,
-  onDelete
-}: {
-  documents: PrlDocument[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  onDelete: (id: string) => void;
+function CompaniesView(props: {
+  invitations: PrlInvitation[];
+  inviteCompany: string;
+  inviteEmail: string;
+  inviteCif: string;
+  inviteContact: string;
+  inviteRole: string;
+  editingInvitationId: string | null;
+  setInviteCompany: (value: string) => void;
+  setInviteEmail: (value: string) => void;
+  setInviteCif: (value: string) => void;
+  setInviteContact: (value: string) => void;
+  setInviteRole: (value: string) => void;
+  saveInvitation: (event: FormEvent<HTMLFormElement>) => void;
+  resetInvitationForm: () => void;
+  startEditInvitation: (invitation: PrlInvitation) => void;
+  resendInvitation: (invitation: PrlInvitation) => void;
+  deleteInvitation: (invitation: PrlInvitation) => void;
 }) {
   return (
-    <div className="prl-doc-list">
-      {documents.length === 0 ? <div className="prl-empty">Sin documentos para este filtro.</div> : null}
-      {documents.map((document) => (
-        <article className="prl-doc-card" key={document.id}>
-          <div>
-            <span className={`prl-badge ${document.status}`}>{statusLabels[document.status]}</span>
-            <h3>{document.type}</h3>
-            <p>
-              {categoryLabels[document.category]} · {document.owner}
-            </p>
-            <p>{document.fileName || "Archivo pendiente de subir"}</p>
-            {document.expiryDate ? <p>Caduca: {document.expiryDate}</p> : null}
-            {document.rejectionComment ? <p>Rechazo: {document.rejectionComment}</p> : null}
-          </div>
-          <div className="prl-doc-actions">
-            <button onClick={() => onApprove(document.id)}>
-              <Check size={15} />
-              Aprobar
-            </button>
-            <button onClick={() => onReject(document.id)}>
-              <X size={15} />
-              Rechazar
-            </button>
-            <button className="danger" onClick={() => onDelete(document.id)}>
-              <Trash2 size={15} />
-              Eliminar
-            </button>
-          </div>
-        </article>
-      ))}
-    </div>
+    <section className="admin-grid-two">
+      <form className="admin-panel-card" onSubmit={props.saveInvitation}>
+        <h2>{props.editingInvitationId ? "Editar empresa" : "Anadir empresa / autonomo"}</h2>
+        <label>Empresa<input value={props.inviteCompany} onChange={(event) => props.setInviteCompany(event.target.value)} /></label>
+        <label>Email<input type="email" value={props.inviteEmail} onChange={(event) => props.setInviteEmail(event.target.value)} /></label>
+        <label>CIF / NIF<input value={props.inviteCif} onChange={(event) => props.setInviteCif(event.target.value)} /></label>
+        <label>Contacto<input value={props.inviteContact} onChange={(event) => props.setInviteContact(event.target.value)} /></label>
+        <label>Rol en obra<input value={props.inviteRole} onChange={(event) => props.setInviteRole(event.target.value)} /></label>
+        <button className="primary" type="submit">{props.editingInvitationId ? "Guardar cambios" : "Enviar invitacion"}</button>
+        {props.editingInvitationId ? <button type="button" onClick={props.resetInvitationForm}>Cancelar</button> : null}
+      </form>
+      <div className="admin-panel-card wide">
+        <h2>Empresas y autonomos</h2>
+        <div className="admin-table">
+          <div className="admin-table-row head"><span>Empresa</span><span>Email</span><span>Rol</span><span>Estado</span><span>Acciones</span></div>
+          {props.invitations.map((invitation) => (
+            <div className="admin-table-row" key={invitation.id}>
+              <strong>{invitation.company_name}</strong>
+              <span>{invitation.company_email}</span>
+              <span>{invitation.role || "-"}</span>
+              <span className={`prl-badge ${badgeClass(invitation.status)}`}>{statusLabels[invitation.status] ?? invitation.status}</span>
+              <div className="row-actions">
+                <button onClick={() => props.startEditInvitation(invitation)}><Edit3 size={14} /></button>
+                <button onClick={() => props.resendInvitation(invitation)}><Mail size={14} /></button>
+                <button className="danger" onClick={() => props.deleteInvitation(invitation)}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
-function AlertsTable({ alerts }: { alerts: Array<PrlDocument & { remaining: number | null }> }) {
+function WorkersView({ workers, invitations, documents }: { workers: PrlWorker[]; invitations: PrlInvitation[]; documents: RemotePrlDocument[] }) {
   return (
-    <div className="prl-alerts">
-      {alerts.length === 0 ? <div className="prl-empty">Sin alertas documentales.</div> : null}
-      {alerts.map((alert) => (
-        <article className={`prl-alert ${alert.status}`} key={alert.id}>
-          <AlertTriangle size={18} />
-          <div>
-            <strong>{alert.type}</strong>
-            <span>
-              {alert.owner} · {statusLabels[alert.status]}
-              {alert.remaining !== null && alert.remaining >= 0 ? ` · caduca en ${alert.remaining} días` : ""}
-            </span>
+    <section className="admin-panel-card">
+      <h2>Trabajadores</h2>
+      <div className="admin-table">
+        <div className="admin-table-row head"><span>Trabajador</span><span>DNI/NIE</span><span>Empresa</span><span>Puesto</span><span>Docs</span></div>
+        {workers.length === 0 ? <div className="prl-empty">Sin trabajadores registrados por industriales.</div> : null}
+        {workers.map((worker) => {
+          const invitation = invitations.find((item) => item.id === worker.invitation_id || item.contractor_id === worker.contractor_id);
+          const docs = documents.filter((document) => document.owner_id === worker.id);
+          return (
+            <div className="admin-table-row" key={worker.id}>
+              <strong>{worker.full_name}</strong>
+              <span>{worker.dni || "-"}</span>
+              <span>{invitation?.company_name || "-"}</span>
+              <span>{worker.position || "-"}</span>
+              <span>{docs.filter((doc) => doc.status === "aprobado").length}/{docs.length}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function DocumentsView({ documents, reviewDocument }: { documents: RemotePrlDocument[]; reviewDocument: (id: string, status: "aprobado" | "rechazado") => void }) {
+  return (
+    <section className="admin-panel-card">
+      <h2>Documentacion recibida</h2>
+      <div className="admin-table docs">
+        <div className="admin-table-row head"><span>Documento</span><span>Titular</span><span>Empresa</span><span>Estado</span><span>Archivo</span><span>Revision</span></div>
+        {documents.length === 0 ? <div className="prl-empty">Todavia no hay documentos externos.</div> : null}
+        {documents.map((document) => (
+          <div className="admin-table-row" key={document.id}>
+            <strong>{document.document_type}</strong>
+            <span>{document.owner_name || document.company_name}</span>
+            <span>{document.company_name}</span>
+            <span className={`prl-badge ${badgeClass(document.status)}`}>{statusLabels[document.status] ?? document.status}</span>
+            <span>{document.signed_url ? <a href={document.signed_url} target="_blank">Ver archivo</a> : "-"}</span>
+            <div className="row-actions">
+              <button onClick={() => reviewDocument(document.id, "aprobado")}><Check size={14} /></button>
+              <button className="danger" onClick={() => reviewDocument(document.id, "rechazado")}><X size={14} /></button>
+            </div>
           </div>
-          <p>{alert.status === "rechazado" ? "Revisar comentario y solicitar nueva versión." : "Revisar y actualizar documentación."}</p>
-        </article>
-      ))}
-    </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AccessView({ invitations }: { invitations: PrlInvitation[] }) {
+  return (
+    <section className="admin-panel-card">
+      <h2>Accesos industriales</h2>
+      <div className="admin-table">
+        <div className="admin-table-row head"><span>Empresa</span><span>Email</span><span>Invitacion</span><span>Cuenta</span><span>Email PRL</span></div>
+        {invitations.map((invitation) => (
+          <div className="admin-table-row" key={invitation.id}>
+            <strong>{invitation.company_name}</strong>
+            <span>{invitation.company_email}</span>
+            <span>{invitation.accepted_at ? "Aceptada" : "Pendiente"}</span>
+            <span>{invitation.contractor_id ? "Registrada" : "Sin registrar"}</span>
+            <span>{invitation.email_error ? "Error email" : invitation.email_sent_at ? "Enviado" : "Pendiente"}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
