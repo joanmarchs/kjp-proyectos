@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
-import { ensurePrlBucket, PRL_BUCKET } from "@/lib/prl";
+import { cookies } from "next/headers";
+import { ensurePrlBucket, PRL_BUCKET, PRL_CONTRACTOR_COOKIE, verifyPrlContractorSession } from "@/lib/prl";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const supabase = getSupabaseAdmin();
-  if (!supabase) return NextResponse.json({ error: "Supabase no está configurado." }, { status: 500 });
+  if (!supabase) return NextResponse.json({ error: "Supabase no esta configurado." }, { status: 500 });
 
   const { token } = await params;
   const { data: invitation, error } = await supabase.from("prl_invitations").select("*").eq("token", token).single();
-  if (error || !invitation) return NextResponse.json({ error: "Invitación no válida." }, { status: 404 });
+  if (error || !invitation) return NextResponse.json({ error: "Invitacion no valida." }, { status: 404 });
+
+  const contractorSession = verifyPrlContractorSession((await cookies()).get(PRL_CONTRACTOR_COOKIE)?.value);
+  if (contractorSession?.email !== invitation.company_email.trim().toLowerCase()) {
+    return NextResponse.json({ error: "Inicia sesion con el email invitado antes de subir documentacion." }, { status: 401 });
+  }
 
   const form = await request.formData();
   const file = form.get("file");

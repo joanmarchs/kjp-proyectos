@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from "./supabase";
+import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
 
 export const PRL_BUCKET = "prl-documents";
+export const PRL_CONTRACTOR_COOKIE = "kjp_prl_contractor";
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
 export const requiredCompanyDocuments = [
@@ -16,6 +18,60 @@ export const requiredCompanyDocuments = [
 
 export function prlToken() {
   return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+}
+
+export function normalizePrlEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+export function hashPrlPassword(password: string) {
+  const salt = randomBytes(16).toString("base64url");
+  const hash = pbkdf2Sync(password, salt, 120000, 32, "sha256").toString("base64url");
+  return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+export function verifyPrlPassword(password: string, storedHash: string | null | undefined) {
+  if (!storedHash) return false;
+  const [scheme, iterationsText, salt, expected] = storedHash.split("$");
+  if (scheme !== "pbkdf2_sha256" || !iterationsText || !salt || !expected) return false;
+
+  const actual = pbkdf2Sync(password, salt, Number(iterationsText), 32, "sha256");
+  const expectedBytes = Buffer.from(expected, "base64url");
+  return expectedBytes.length === actual.length && timingSafeEqual(expectedBytes, actual);
+}
+
+function prlSessionSecret() {
+  return process.env.AUTH_TOKEN || process.env.LOGIN_PASSWORD || "kjp-prl-session";
+}
+
+function signContractorPayload(payload: string) {
+  return createHmac("sha256", prlSessionSecret()).update(payload).digest("base64url");
+}
+
+export function createPrlContractorSession(contractor: { id: string; email: string }) {
+  const payload = Buffer.from(
+    JSON.stringify({
+      id: contractor.id,
+      email: normalizePrlEmail(contractor.email),
+      exp: Date.now() + 1000 * 60 * 60 * 24 * 30
+    }),
+    "utf8"
+  ).toString("base64url");
+  return `${payload}.${signContractorPayload(payload)}`;
+}
+
+export function verifyPrlContractorSession(cookieValue: string | undefined) {
+  if (!cookieValue) return null;
+  const [payload, signature] = cookieValue.split(".");
+  if (!payload || !signature || signContractorPayload(payload) !== signature) return null;
+
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { id?: string; email?: string; exp?: number };
+    if (!parsed.id || !parsed.email || !parsed.exp || parsed.exp < Date.now()) return null;
+    return { id: parsed.id, email: normalizePrlEmail(parsed.email) };
+  } catch {
+    return null;
+  }
 }
 
 export function appBaseUrl(request: Request) {
@@ -72,8 +128,6 @@ export function prlInvitationEmailHtml({
   companyName: string;
   inviteUrl: string;
 }) {
-  const documentItems = requiredCompanyDocuments.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-
   return `
     <div style="margin:0;padding:0;background:#f4f7f1;font-family:Arial,Helvetica,sans-serif;color:#172017;">
       <div style="max-width:640px;margin:0 auto;padding:28px 18px;">
@@ -85,13 +139,11 @@ export function prlInvitationEmailHtml({
           <div style="padding:26px;">
             <p style="font-size:16px;line-height:1.55;margin:0 0 16px;">Hola ${escapeHtml(companyName)},</p>
             <p style="font-size:16px;line-height:1.55;margin:0 0 16px;">
-              KJP te invita a formar parte de la obra <strong>${escapeHtml(projectName)}</strong>. Para poder acceder a obra necesitamos que subas la documentacion PRL/CAE correspondiente.
+              KJP te invita a formar parte de la obra <strong>${escapeHtml(projectName)}</strong>. Para acceder al portal PRL crea tu acceso con este email o inicia sesion si ya tienes cuenta de otra obra.
             </p>
             <a href="${escapeHtml(inviteUrl)}" style="display:inline-block;margin:10px 0 22px;padding:13px 20px;background:#4e8f76;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:800;">
               Acceder al portal PRL
             </a>
-            <p style="font-size:14px;line-height:1.5;margin:0 0 10px;color:#50604c;">Documentacion inicial requerida:</p>
-            <ul style="font-size:14px;line-height:1.7;margin:0 0 22px;padding-left:20px;color:#172017;">${documentItems}</ul>
             <p style="font-size:13px;line-height:1.45;margin:0;color:#64705f;">
               Si el boton no funciona, copia este enlace en el navegador:<br />
               <a href="${escapeHtml(inviteUrl)}" style="color:#4e8f76;">${escapeHtml(inviteUrl)}</a>

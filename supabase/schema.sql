@@ -39,10 +39,24 @@ create table if not exists public.prl_invitations (
   role text,
   token text not null unique,
   status text not null default 'invited',
+  contractor_id uuid,
+  accepted_at timestamptz,
   email_sent_at timestamptz,
   email_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.prl_contractors (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  password_hash text not null,
+  company_name text not null,
+  company_cif text,
+  contact_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_login_at timestamptz
 );
 
 create table if not exists public.prl_documents (
@@ -67,11 +81,18 @@ create table if not exists public.prl_documents (
 );
 
 alter table public.prl_invitations enable row level security;
+alter table public.prl_contractors enable row level security;
 alter table public.prl_documents enable row level security;
 
 drop policy if exists "Read prl invitations" on public.prl_invitations;
 create policy "Read prl invitations"
 on public.prl_invitations
+for select
+using (true);
+
+drop policy if exists "Read prl contractors" on public.prl_contractors;
+create policy "Read prl contractors"
+on public.prl_contractors
 for select
 using (true);
 
@@ -89,6 +110,25 @@ add column if not exists email_sent_at timestamptz;
 
 alter table public.prl_invitations
 add column if not exists email_error text;
+
+alter table public.prl_invitations
+add column if not exists contractor_id uuid;
+
+alter table public.prl_invitations
+add column if not exists accepted_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'prl_invitations_contractor_id_fkey'
+  ) then
+    alter table public.prl_invitations
+    add constraint prl_invitations_contractor_id_fkey
+    foreign key (contractor_id) references public.prl_contractors(id);
+  end if;
+end $$;
 
 create index if not exists prl_documents_project_idx
 on public.prl_documents (project_id);
