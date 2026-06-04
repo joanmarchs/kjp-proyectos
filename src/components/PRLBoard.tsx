@@ -13,7 +13,9 @@ import {
   GraduationCap,
   Home,
   Mail,
+  Minus,
   Plus,
+  RotateCcw,
   Search,
   Settings,
   ShieldCheck,
@@ -22,7 +24,7 @@ import {
   X
 } from "lucide-react";
 import Link from "next/link";
-import type { FormEvent } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useMemo, useState, useEffect } from "react";
 
 type DocumentStatus = "pendiente" | "revision" | "aprobado" | "rechazado" | "caducado" | "no_aplica";
@@ -623,76 +625,97 @@ function StructureView({
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
 }) {
+  const [treeZoom, setTreeZoom] = useState(1);
   const rootInvitations = invitations.filter((invitation) => !invitation.parent_invitation_id);
   const childInvitations = (parentId: string) => invitations.filter((invitation) => invitation.parent_invitation_id === parentId);
+  const changeZoom = (delta: number) => {
+    setTreeZoom((current) => Math.min(1.45, Math.max(0.65, Number((current + delta).toFixed(2)))));
+  };
 
   return (
     <section className="structure-card">
-      <div className="org-root">
-        <OrgCard
-          title="CONTRATA GENERAL"
-          subtitle="KJP Retail Construction"
-          tone="blue"
-          meta="Responsables: jm / knarik"
-          onAddCompany={() => onAddCompany(null)}
-          onAddSubcontractor={() => onAddSubcontractor(null)}
-          onAddWorker={() => onAddWorker(null)}
-        />
-        <div className="org-worker-list root-workers">
-          {workers.filter((worker) => !worker.invitation_id && !worker.contractor_id).map((worker) => (
-            <span key={worker.id}><Users size={13} />{worker.full_name}</span>
-          ))}
+      <div className="structure-toolbar">
+        <div>
+          <strong>Arbol de contratacion</strong>
+          <span>Desplazate con el scroll y ajusta el zoom para navegar por estructuras grandes.</span>
+        </div>
+        <div className="structure-zoom-controls" aria-label="Controles de zoom del arbol">
+          <button type="button" onClick={() => changeZoom(-0.1)} aria-label="Reducir zoom"><Minus size={16} /></button>
+          <strong>{Math.round(treeZoom * 100)}%</strong>
+          <button type="button" onClick={() => changeZoom(0.1)} aria-label="Aumentar zoom"><Plus size={16} /></button>
+          <button type="button" onClick={() => setTreeZoom(1)} aria-label="Restablecer zoom"><RotateCcw size={16} /></button>
         </div>
       </div>
-      <div className="org-branches">
-        {rootInvitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
-        {rootInvitations.map((invitation, index) => {
-          const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id || worker.contractor_id === invitation.contractor_id);
-          const subcontractors = childInvitations(invitation.id);
-          return (
-            <div className="org-column" key={invitation.id}>
-              <OrgCard
-                title={invitation.company_name}
-                subtitle={invitation.role || invitation.company_email}
-                tone={companyTone(index)}
-                meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
-                onAddCompany={() => onAddCompany(invitation)}
-                onAddSubcontractor={() => onAddSubcontractor(invitation)}
-                onAddWorker={() => onAddWorker(invitation)}
-              />
-              {subcontractors.length ? (
-                <div className="org-children">
-                  {subcontractors.map((subcontractor, subIndex) => {
-                    const subcontractorWorkers = workers.filter((worker) => worker.invitation_id === subcontractor.id || worker.contractor_id === subcontractor.contractor_id);
-                    return (
-                      <div className="org-child-group" key={subcontractor.id}>
-                        <OrgCard
-                          title={subcontractor.company_name}
-                          subtitle={subcontractor.role || "Subcontrata"}
-                          tone={companyTone(index + subIndex + 1)}
-                          meta={`Responsable: ${subcontractor.contact_name || "Pendiente"}`}
-                          onAddCompany={() => onAddCompany(subcontractor)}
-                          onAddSubcontractor={() => onAddSubcontractor(subcontractor)}
-                          onAddWorker={() => onAddWorker(subcontractor)}
-                        />
-                        <div className="org-worker-list">
-                          {subcontractorWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-              <div className="org-worker-list">
-                {linkedWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
-              </div>
-              <div className="org-subcard">
-                <strong>{linkedWorkers.length}</strong>
-                <span>Trabajadores</span>
-              </div>
+
+      <div className="structure-viewport">
+        <div className="structure-canvas" style={{ "--tree-zoom": treeZoom } as CSSProperties}>
+          <div className="org-root">
+            <OrgCard
+              title="CONTRATA GENERAL"
+              subtitle="KJP Retail Construction"
+              tone="blue"
+              meta="Responsables: jm / knarik"
+              onAddCompany={() => onAddCompany(null)}
+              onAddSubcontractor={() => onAddSubcontractor(null)}
+              onAddWorker={() => onAddWorker(null)}
+            />
+            <div className="org-worker-list root-workers">
+              {workers.filter((worker) => !worker.invitation_id && !worker.contractor_id).map((worker) => (
+                <span key={worker.id}><Users size={13} />{worker.full_name}</span>
+              ))}
             </div>
-          );
-        })}
+          </div>
+          <div className="org-branches">
+            {rootInvitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
+            {rootInvitations.map((invitation, index) => {
+              const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id || worker.contractor_id === invitation.contractor_id);
+              const subcontractors = childInvitations(invitation.id);
+              return (
+                <div className="org-column" key={invitation.id}>
+                  <OrgCard
+                    title={invitation.company_name}
+                    subtitle={invitation.role || invitation.company_email}
+                    tone={companyTone(index)}
+                    meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
+                    onAddCompany={() => onAddCompany(invitation)}
+                    onAddSubcontractor={() => onAddSubcontractor(invitation)}
+                    onAddWorker={() => onAddWorker(invitation)}
+                  />
+                  {subcontractors.length ? (
+                    <div className="org-children">
+                      {subcontractors.map((subcontractor, subIndex) => {
+                        const subcontractorWorkers = workers.filter((worker) => worker.invitation_id === subcontractor.id || worker.contractor_id === subcontractor.contractor_id);
+                        return (
+                          <div className="org-child-group" key={subcontractor.id}>
+                            <OrgCard
+                              title={subcontractor.company_name}
+                              subtitle={subcontractor.role || "Subcontrata"}
+                              tone={companyTone(index + subIndex + 1)}
+                              meta={`Responsable: ${subcontractor.contact_name || "Pendiente"}`}
+                              onAddCompany={() => onAddCompany(subcontractor)}
+                              onAddSubcontractor={() => onAddSubcontractor(subcontractor)}
+                              onAddWorker={() => onAddWorker(subcontractor)}
+                            />
+                            <div className="org-worker-list">
+                              {subcontractorWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  <div className="org-worker-list">
+                    {linkedWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
+                  </div>
+                  <div className="org-subcard">
+                    <strong>{linkedWorkers.length}</strong>
+                    <span>Trabajadores</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
       <footer className="structure-footer">
         <span><i className="dot blue" />Contrata General</span>
