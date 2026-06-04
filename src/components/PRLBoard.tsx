@@ -3,18 +3,14 @@
 import {
   AlertCircle,
   ArrowLeft,
-  Bell,
   Building2,
   Check,
-  ChevronDown,
-  ClipboardList,
   Edit3,
   FileText,
   GraduationCap,
   Home,
   Mail,
   Plus,
-  Search,
   Settings,
   ShieldCheck,
   Trash2,
@@ -130,7 +126,6 @@ function companyTone(index: number) {
 
 export default function PRLBoard({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [tab, setTab] = useState<AdminTab>("estructura");
-  const [query, setQuery] = useState("");
   const [payload, setPayload] = useState<PrlPayload>({ invitations: [], documents: [], workers: [], contractors: [] });
   const [message, setMessage] = useState("");
   const [inviteCompany, setInviteCompany] = useState("");
@@ -169,28 +164,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     loadRemotePrl().catch((error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar PRL."));
   }, [projectId]);
 
-  const filteredInvitations = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    if (!term) return payload.invitations;
-    return payload.invitations.filter((invitation) =>
-      [invitation.company_name, invitation.company_email, invitation.role ?? "", invitation.contact_name ?? ""].some((value) =>
-        value.toLowerCase().includes(term)
-      )
-    );
-  }, [payload.invitations, query]);
-
-  const totals = useMemo(() => {
-    const approved = payload.documents.filter((document) => document.status === "aprobado").length;
-    return {
-      companies: payload.invitations.length,
-      subcontractors: Math.max(payload.invitations.length - 1, 0),
-      workers: payload.workers.length,
-      documents: payload.documents.length,
-      pending: payload.documents.filter((document) => document.status === "revision" || document.status === "pendiente").length,
-      rejected: payload.documents.filter((document) => document.status === "rechazado").length,
-      completion: payload.documents.length ? Math.round((approved / payload.documents.length) * 100) : 0
-    };
-  }, [payload]);
+  const filteredInvitations = payload.invitations;
 
   function resetInvitationForm() {
     setInviteCompany("");
@@ -378,49 +352,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
       </aside>
 
       <section className="prl-admin-content">
-        <header className="prl-admin-topbar">
-          <div className="prl-admin-search">
-            <Search size={16} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar empresa, trabajador o documento" />
-          </div>
-          <div className="prl-admin-user">
-            <Bell size={19} />
-            <span className="notification-dot">3</span>
-            <div className="avatar">CG</div>
-            <div>
-              <strong>Contrata General</strong>
-              <span>Administrador</span>
-            </div>
-            <ChevronDown size={16} />
-          </div>
-        </header>
-
         <div className="prl-admin-main">
-          <div className="prl-admin-titlebar">
-            <div>
-              <h1>Estructura de la obra</h1>
-              <p>{projectName} · Visualiza y gestiona empresas, trabajadores, accesos y documentacion PRL.</p>
-            </div>
-            <div className="prl-admin-actions-main">
-              <button className="primary" onClick={() => setTab("empresas")}>
-                <Plus size={16} />
-                Anadir
-              </button>
-              <button onClick={() => setTab("empresas")}>
-                <Edit3 size={16} />
-                Editar
-              </button>
-            </div>
-          </div>
-
-          <nav className="prl-admin-tabs">
-            {tabs.map(([key, label]) => (
-              <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-                {label}
-              </button>
-            ))}
-          </nav>
-
           {message ? <div className="prl-admin-notice">{message}</div> : null}
 
           {tab === "estructura" ? (
@@ -451,7 +383,6 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
               <StructureView
                 invitations={filteredInvitations}
                 workers={payload.workers}
-                totals={totals}
                 onAddSubcontractor={(parent) => openTreeAction({ kind: "subcontractor", parent })}
                 onAddWorker={(parent) => openTreeAction({ kind: "worker", parent })}
               />
@@ -578,13 +509,11 @@ function TreeActionPanel({
 function StructureView({
   invitations,
   workers,
-  totals,
   onAddSubcontractor,
   onAddWorker
 }: {
   invitations: PrlInvitation[];
   workers: PrlWorker[];
-  totals: { companies: number; subcontractors: number; workers: number };
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
 }) {
@@ -599,14 +528,6 @@ function StructureView({
 
   return (
     <section className="structure-card">
-      <div className="structure-toolbar">
-        <div>
-          <strong>Arbol de contratacion</strong>
-          <span>Usa la rueda del raton dentro del lienzo para acercar o alejar.</span>
-        </div>
-        <strong className="structure-zoom-badge">{Math.round(treeZoom * 100)}%</strong>
-      </div>
-
       <div className="structure-viewport" onWheel={handleWheelZoom}>
         <div className="structure-canvas" style={{ "--tree-zoom": treeZoom } as CSSProperties}>
           <div className="org-root">
@@ -673,14 +594,6 @@ function StructureView({
           </div>
         </div>
       </div>
-      <footer className="structure-footer">
-        <span><i className="dot blue" />Contrata General</span>
-        <span><i className="dot green" />Empresa Principal</span>
-        <span><i className="dot orange" />Subcontrata</span>
-        <strong><Building2 size={18} />{totals.companies} Empresas</strong>
-        <strong><ClipboardList size={18} />{totals.subcontractors} Subcontratas</strong>
-        <strong><Users size={18} />{totals.workers} Trabajadores</strong>
-      </footer>
     </section>
   );
 }
