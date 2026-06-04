@@ -290,17 +290,13 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     event.preventDefault();
     if (!treeAction || treeAction.kind !== "worker") return;
     const parentInvitation = treeAction.parent ?? payload.invitations.find((invitation) => invitation.id === treeParentId);
-    if (!parentInvitation) {
-      setMessage("Selecciona la empresa a la que pertenece el trabajador.");
-      return;
-    }
     const response = await fetch("/api/prl/workers", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         projectId,
-        invitationId: parentInvitation.id,
-        contractorId: parentInvitation.contractor_id,
+        invitationId: parentInvitation?.id ?? null,
+        contractorId: parentInvitation?.contractor_id ?? null,
         fullName: workerName,
         dni: workerDni,
         position: workerPosition
@@ -548,23 +544,16 @@ function TreeActionPanel({
   const title =
     action.kind === "company"
       ? "Anadir empresa del mismo nivel"
-      : action.kind === "subcontractor"
+        : action.kind === "subcontractor"
         ? `Anadir subcontrata${action.parent ? ` de ${action.parent.company_name}` : ""}`
-        : `Anadir trabajador${action.parent ? ` de ${action.parent.company_name}` : ""}`;
+        : `Anadir trabajador de ${action.parent ? action.parent.company_name : "Contrata General KJP Retail"}`;
 
   if (action.kind === "worker") {
     return (
       <div className="tree-modal-backdrop">
         <form className="tree-action-modal" onSubmit={onSaveWorker}>
           <h2>{title}</h2>
-          {!action.parent ? (
-            <label>Empresa
-              <select value={parentId} onChange={(event) => setParentId(event.target.value)}>
-                <option value="">Selecciona empresa</option>
-                {invitations.map((invitation) => <option key={invitation.id} value={invitation.id}>{invitation.company_name}</option>)}
-              </select>
-            </label>
-          ) : null}
+          {!action.parent && invitations.length > 0 ? <p className="tree-modal-hint">Se guardara como trabajador de Contrata General KJP Retail.</p> : null}
           <label>Nombre trabajador<input value={workerName} onChange={(event) => setWorkerName(event.target.value)} /></label>
           <label>DNI / NIE<input value={workerDni} onChange={(event) => setWorkerDni(event.target.value)} /></label>
           <label>Puesto<input value={workerPosition} onChange={(event) => setWorkerPosition(event.target.value)} /></label>
@@ -633,6 +622,11 @@ function StructureView({
           onAddSubcontractor={() => onAddSubcontractor(null)}
           onAddWorker={() => onAddWorker(null)}
         />
+        <div className="org-worker-list root-workers">
+          {workers.filter((worker) => !worker.invitation_id && !worker.contractor_id).map((worker) => (
+            <span key={worker.id}><Users size={13} />{worker.full_name}</span>
+          ))}
+        </div>
       </div>
       <div className="org-branches">
         {rootInvitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
@@ -805,7 +799,7 @@ function WorkersView({ workers, invitations, documents }: { workers: PrlWorker[]
             <div className="admin-table-row" key={worker.id}>
               <strong>{worker.full_name}</strong>
               <span>{worker.dni || "-"}</span>
-              <span>{invitation?.company_name || "-"}</span>
+              <span>{invitation?.company_name || "Contrata General KJP Retail"}</span>
               <span>{worker.position || "-"}</span>
               <span>{docs.filter((doc) => doc.status === "aprobado").length}/{docs.length}</span>
             </div>

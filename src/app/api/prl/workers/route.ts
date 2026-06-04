@@ -19,10 +19,10 @@ export async function POST(request: Request) {
     position?: string;
   };
   const projectId = body.projectId?.trim() ?? "";
-  const invitationId = body.invitationId?.trim() ?? "";
+  const invitationId = body.invitationId?.trim() || null;
   const fullName = body.fullName?.trim() ?? "";
 
-  if (!projectId || !invitationId || !fullName) {
+  if (!projectId || !fullName) {
     return NextResponse.json({ error: "Faltan datos obligatorios del trabajador." }, { status: 400 });
   }
 
