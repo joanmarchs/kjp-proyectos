@@ -493,9 +493,6 @@ export default function Dashboard() {
                       ))}
                     </select>
                   </label>
-                  <Link href={`/licitacion/${project.id}`} className="project-link-action">
-                    Licitación
-                  </Link>
                   <Link href={`/prl/${project.id}?name=${encodeURIComponent(project.name)}`} className="project-link-action">
                     PRL
                   </Link>
