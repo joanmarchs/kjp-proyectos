@@ -273,40 +273,6 @@
   font-size: 13px;
 }
 
-.structure-zoom-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex-shrink: 0;
-  border: 1px solid #d9e0ea;
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 6px;
-}
-
-.structure-zoom-controls button {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid #d9e0ea;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1e293b;
-  cursor: pointer;
-}
-
-.structure-zoom-controls button:hover {
-  border-color: #155ee8;
-  color: #155ee8;
-}
-
-.structure-zoom-controls strong {
-  min-width: 48px;
-  text-align: center;
-  font-size: 13px;
-}
-
 .structure-viewport {
   overflow: auto;
   min-height: 420px;
@@ -317,6 +283,17 @@
     linear-gradient(#ffffff, #ffffff) padding-box,
     repeating-linear-gradient(90deg, rgba(21, 94, 232, 0.04) 0 1px, transparent 1px 64px),
     repeating-linear-gradient(0deg, rgba(21, 94, 232, 0.04) 0 1px, transparent 1px 64px);
+}
+
+.structure-zoom-badge {
+  flex-shrink: 0;
+  min-width: 58px;
+  border: 1px solid #d9e0ea;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #1e293b;
+  text-align: center;
+  padding: 8px 12px;
 }
 
 .structure-canvas {

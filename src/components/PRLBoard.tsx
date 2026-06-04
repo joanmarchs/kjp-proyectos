@@ -13,9 +13,7 @@ import {
   GraduationCap,
   Home,
   Mail,
-  Minus,
   Plus,
-  RotateCcw,
   Search,
   Settings,
   ShieldCheck,
@@ -24,7 +22,7 @@ import {
   X
 } from "lucide-react";
 import Link from "next/link";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties, FormEvent, WheelEvent } from "react";
 import { useMemo, useState, useEffect } from "react";
 
 type DocumentStatus = "pendiente" | "revision" | "aprobado" | "rechazado" | "caducado" | "no_aplica";
@@ -47,7 +45,6 @@ type PrlInvitation = {
 };
 
 type TreeAction =
-  | { kind: "company"; parent: PrlInvitation | null }
   | { kind: "subcontractor"; parent: PrlInvitation | null }
   | { kind: "worker"; parent: PrlInvitation | null }
   | null;
@@ -259,12 +256,9 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   async function saveTreeCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!treeAction || treeAction.kind === "worker") return;
-    const parentInvitationId =
-      treeAction.kind === "subcontractor"
-        ? treeAction.parent?.id ?? treeParentId
-        : treeAction.parent?.parent_invitation_id ?? null;
-    if (treeAction.kind === "subcontractor" && !parentInvitationId) {
-      setMessage("Selecciona la empresa de la que cuelga la subcontrata.");
+    const parentInvitationId = treeAction.parent?.id ?? treeParentId;
+    if (!parentInvitationId) {
+      setMessage("La subcontrata debe crearse desde el + de la empresa de la que depende.");
       return;
     }
     const response = await fetch("/api/prl/invitations", {
@@ -277,7 +271,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
         companyEmail: treeEmail,
         companyCif: treeCif,
         contactName: treeContact,
-        role: treeRole || (treeAction.kind === "subcontractor" ? "Subcontrata" : "Empresa principal"),
+        role: treeRole || "Subcontrata",
         parentInvitationId
       })
     });
@@ -287,7 +281,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
       return;
     }
     setTreeAction(null);
-    setMessage(treeAction.kind === "subcontractor" ? "Subcontrata creada." : "Empresa creada.");
+    setMessage("Subcontrata creada.");
     await loadRemotePrl();
   }
 
@@ -441,7 +435,6 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
                 workerName={workerName}
                 workerDni={workerDni}
                 workerPosition={workerPosition}
-                parentId={treeParentId}
                 invitations={payload.invitations}
                 setCompany={setTreeCompany}
                 setEmail={setTreeEmail}
@@ -451,7 +444,6 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
                 setWorkerName={setWorkerName}
                 setWorkerDni={setWorkerDni}
                 setWorkerPosition={setWorkerPosition}
-                setParentId={setTreeParentId}
                 onCancel={() => setTreeAction(null)}
                 onSaveCompany={saveTreeCompany}
                 onSaveWorker={saveTreeWorker}
@@ -460,7 +452,6 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
                 invitations={filteredInvitations}
                 workers={payload.workers}
                 totals={totals}
-                onAddCompany={(parent) => openTreeAction({ kind: "company", parent })}
                 onAddSubcontractor={(parent) => openTreeAction({ kind: "subcontractor", parent })}
                 onAddWorker={(parent) => openTreeAction({ kind: "worker", parent })}
               />
@@ -506,7 +497,6 @@ function TreeActionPanel({
   workerName,
   workerDni,
   workerPosition,
-  parentId,
   invitations,
   setCompany,
   setEmail,
@@ -516,7 +506,6 @@ function TreeActionPanel({
   setWorkerName,
   setWorkerDni,
   setWorkerPosition,
-  setParentId,
   onCancel,
   onSaveCompany,
   onSaveWorker
@@ -530,7 +519,6 @@ function TreeActionPanel({
   workerName: string;
   workerDni: string;
   workerPosition: string;
-  parentId: string;
   invitations: PrlInvitation[];
   setCompany: (value: string) => void;
   setEmail: (value: string) => void;
@@ -540,21 +528,15 @@ function TreeActionPanel({
   setWorkerName: (value: string) => void;
   setWorkerDni: (value: string) => void;
   setWorkerPosition: (value: string) => void;
-  setParentId: (value: string) => void;
   onCancel: () => void;
   onSaveCompany: (event: FormEvent<HTMLFormElement>) => void;
   onSaveWorker: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   if (!action) return null;
   const title =
-    action.kind === "company"
-      ? "Anadir empresa del mismo nivel"
-        : action.kind === "subcontractor"
-        ? `Anadir subcontrata${action.parent ? ` de ${action.parent.company_name}` : ""}`
-        : `Anadir trabajador de ${action.parent ? action.parent.company_name : "Contrata General KJP Retail"}`;
-  const sameLevelParent = action.kind === "company" && action.parent?.parent_invitation_id
-    ? invitations.find((invitation) => invitation.id === action.parent?.parent_invitation_id)
-    : null;
+    action.kind === "subcontractor"
+      ? `Anadir subcontrata de ${action.parent?.company_name ?? "empresa seleccionada"}`
+      : `Anadir trabajador de ${action.parent ? action.parent.company_name : "Contrata General KJP Retail"}`;
 
   if (action.kind === "worker") {
     return (
@@ -578,24 +560,7 @@ function TreeActionPanel({
     <div className="tree-modal-backdrop">
       <form className="tree-action-modal" onSubmit={onSaveCompany}>
         <h2>{title}</h2>
-        {action.kind === "subcontractor" && action.parent ? (
-          <p className="tree-modal-hint">Se guardara como subcontrata directa de {action.parent.company_name}.</p>
-        ) : null}
-        {action.kind === "company" && action.parent ? (
-          <p className="tree-modal-hint">
-            {sameLevelParent
-              ? `Se guardara al mismo nivel que ${action.parent.company_name}, dentro de ${sameLevelParent.company_name}.`
-              : `Se guardara al mismo nivel que ${action.parent.company_name}, como empresa principal.`}
-          </p>
-        ) : null}
-        {action.kind === "subcontractor" && !action.parent ? (
-          <label>Empresa principal
-            <select value={parentId} onChange={(event) => setParentId(event.target.value)}>
-              <option value="">Selecciona empresa</option>
-              {invitations.map((invitation) => <option key={invitation.id} value={invitation.id}>{invitation.company_name}</option>)}
-            </select>
-          </label>
-        ) : null}
+        <p className="tree-modal-hint">Se guardara como subcontrata directa de {action.parent?.company_name ?? "la empresa seleccionada"}.</p>
         <label>Empresa<input value={company} onChange={(event) => setCompany(event.target.value)} /></label>
         <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label>CIF / NIF<input value={cif} onChange={(event) => setCif(event.target.value)} /></label>
@@ -614,21 +579,21 @@ function StructureView({
   invitations,
   workers,
   totals,
-  onAddCompany,
   onAddSubcontractor,
   onAddWorker
 }: {
   invitations: PrlInvitation[];
   workers: PrlWorker[];
   totals: { companies: number; subcontractors: number; workers: number };
-  onAddCompany: (parent: PrlInvitation | null) => void;
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
 }) {
   const [treeZoom, setTreeZoom] = useState(1);
   const rootInvitations = invitations.filter((invitation) => !invitation.parent_invitation_id);
   const childInvitations = (parentId: string) => invitations.filter((invitation) => invitation.parent_invitation_id === parentId);
-  const changeZoom = (delta: number) => {
+  const handleWheelZoom = (event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -0.06 : 0.06;
     setTreeZoom((current) => Math.min(1.45, Math.max(0.65, Number((current + delta).toFixed(2)))));
   };
 
@@ -637,17 +602,12 @@ function StructureView({
       <div className="structure-toolbar">
         <div>
           <strong>Arbol de contratacion</strong>
-          <span>Desplazate con el scroll y ajusta el zoom para navegar por estructuras grandes.</span>
+          <span>Usa la rueda del raton dentro del lienzo para acercar o alejar.</span>
         </div>
-        <div className="structure-zoom-controls" aria-label="Controles de zoom del arbol">
-          <button type="button" onClick={() => changeZoom(-0.1)} aria-label="Reducir zoom"><Minus size={16} /></button>
-          <strong>{Math.round(treeZoom * 100)}%</strong>
-          <button type="button" onClick={() => changeZoom(0.1)} aria-label="Aumentar zoom"><Plus size={16} /></button>
-          <button type="button" onClick={() => setTreeZoom(1)} aria-label="Restablecer zoom"><RotateCcw size={16} /></button>
-        </div>
+        <strong className="structure-zoom-badge">{Math.round(treeZoom * 100)}%</strong>
       </div>
 
-      <div className="structure-viewport">
+      <div className="structure-viewport" onWheel={handleWheelZoom}>
         <div className="structure-canvas" style={{ "--tree-zoom": treeZoom } as CSSProperties}>
           <div className="org-root">
             <OrgCard
@@ -655,8 +615,6 @@ function StructureView({
               subtitle="KJP Retail Construction"
               tone="blue"
               meta="Responsables: jm / knarik"
-              onAddCompany={() => onAddCompany(null)}
-              onAddSubcontractor={() => onAddSubcontractor(null)}
               onAddWorker={() => onAddWorker(null)}
             />
             <div className="org-worker-list root-workers">
@@ -677,7 +635,6 @@ function StructureView({
                     subtitle={invitation.role || invitation.company_email}
                     tone={companyTone(index)}
                     meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
-                    onAddCompany={() => onAddCompany(invitation)}
                     onAddSubcontractor={() => onAddSubcontractor(invitation)}
                     onAddWorker={() => onAddWorker(invitation)}
                   />
@@ -692,7 +649,6 @@ function StructureView({
                               subtitle={subcontractor.role || "Subcontrata"}
                               tone={companyTone(index + subIndex + 1)}
                               meta={`Responsable: ${subcontractor.contact_name || "Pendiente"}`}
-                              onAddCompany={() => onAddCompany(subcontractor)}
                               onAddSubcontractor={() => onAddSubcontractor(subcontractor)}
                               onAddWorker={() => onAddWorker(subcontractor)}
                             />
@@ -734,7 +690,6 @@ function OrgCard({
   subtitle,
   tone,
   meta,
-  onAddCompany,
   onAddSubcontractor,
   onAddWorker
 }: {
@@ -742,8 +697,7 @@ function OrgCard({
   subtitle: string;
   tone: string;
   meta: string;
-  onAddCompany: () => void;
-  onAddSubcontractor: () => void;
+  onAddSubcontractor?: () => void;
   onAddWorker: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -760,9 +714,10 @@ function OrgCard({
         <button type="button" onClick={() => setMenuOpen((open) => !open)}><Plus size={16} /></button>
         {menuOpen ? (
           <div className="org-add-menu">
-            <button type="button" onClick={() => { setMenuOpen(false); onAddCompany(); }}>Empresa mismo nivel</button>
             <button type="button" onClick={() => { setMenuOpen(false); onAddWorker(); }}>Agregar trabajador en empresa</button>
-            <button type="button" onClick={() => { setMenuOpen(false); onAddSubcontractor(); }}>Agregar subcontrata</button>
+            {onAddSubcontractor ? (
+              <button type="button" onClick={() => { setMenuOpen(false); onAddSubcontractor(); }}>Agregar subcontrata</button>
+            ) : null}
           </div>
         ) : null}
       </div>
