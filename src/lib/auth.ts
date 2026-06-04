@@ -10,7 +10,8 @@ export function allowedEmails() {
 }
 
 export function buildSessionValue(email: string) {
-  return process.env.AUTH_TOKEN ?? email;
+  const rawValue = process.env.AUTH_TOKEN ?? email;
+  return Buffer.from(rawValue, "utf8").toString("base64url");
 }
 
 export async function isAuthenticated() {
