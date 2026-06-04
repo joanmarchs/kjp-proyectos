@@ -16,6 +16,15 @@ export const requiredCompanyDocuments = [
   "Adhesión al Plan de Seguridad y Salud"
 ];
 
+export const requiredWorkerDocuments = [
+  "DNI/NIE",
+  "Alta Seguridad Social",
+  "Formacion PRL",
+  "Reconocimiento medico",
+  "Entrega de EPIs",
+  "Informacion de riesgos del puesto"
+];
+
 export function prlToken() {
   return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
 }

@@ -486,6 +486,25 @@
   gap: 10px;
 }
 
+.contractor-dashboard {
+  display: grid;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.contractor-block {
+  border-top: 1px solid #e5ebe1;
+  padding-top: 18px;
+}
+
+.contractor-block h2 {
+  margin: 0 0 12px;
+}
+
+.contractor-docs.compact {
+  margin-top: 12px;
+}
+
 .contractor-docs article {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
@@ -495,6 +514,36 @@
   border-radius: 8px;
   background: #fbfcfa;
   padding: 12px;
+}
+
+.contractor-status-table {
+  overflow-x: auto;
+  border: 1px solid #d6ded0;
+  border-radius: 8px;
+}
+
+.contractor-status-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.2fr) minmax(110px, 0.6fr) minmax(120px, 0.7fr) minmax(110px, 0.6fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 840px;
+  padding: 12px 14px;
+  border-top: 1px solid #e5ebe1;
+}
+
+.contractor-status-row.head {
+  border-top: 0;
+  background: #eef2ea;
+  color: #50604c;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.contractor-status-row a {
+  color: #4e8f76;
+  font-weight: 800;
 }
 
 @media (max-width: 1100px) {

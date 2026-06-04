@@ -51,12 +51,25 @@ create table if not exists public.prl_contractors (
   id uuid primary key default gen_random_uuid(),
   email text not null unique,
   password_hash text not null,
+  contractor_type text not null default 'empresa',
   company_name text not null,
   company_cif text,
   contact_name text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   last_login_at timestamptz
+);
+
+create table if not exists public.prl_workers (
+  id uuid primary key default gen_random_uuid(),
+  contractor_id uuid references public.prl_contractors(id) on delete cascade,
+  invitation_id uuid references public.prl_invitations(id) on delete cascade,
+  project_id text not null,
+  full_name text not null,
+  dni text,
+  position text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.prl_documents (
@@ -67,6 +80,9 @@ create table if not exists public.prl_documents (
   company_email text not null,
   document_type text not null,
   category text not null default 'empresa',
+  owner_type text not null default 'company',
+  owner_id uuid,
+  owner_name text,
   file_name text not null,
   file_path text,
   file_url text,
@@ -82,6 +98,7 @@ create table if not exists public.prl_documents (
 
 alter table public.prl_invitations enable row level security;
 alter table public.prl_contractors enable row level security;
+alter table public.prl_workers enable row level security;
 alter table public.prl_documents enable row level security;
 
 drop policy if exists "Read prl invitations" on public.prl_invitations;
@@ -93,6 +110,12 @@ using (true);
 drop policy if exists "Read prl contractors" on public.prl_contractors;
 create policy "Read prl contractors"
 on public.prl_contractors
+for select
+using (true);
+
+drop policy if exists "Read prl workers" on public.prl_workers;
+create policy "Read prl workers"
+on public.prl_workers
 for select
 using (true);
 
@@ -117,6 +140,18 @@ add column if not exists contractor_id uuid;
 alter table public.prl_invitations
 add column if not exists accepted_at timestamptz;
 
+alter table public.prl_contractors
+add column if not exists contractor_type text not null default 'empresa';
+
+alter table public.prl_documents
+add column if not exists owner_type text not null default 'company';
+
+alter table public.prl_documents
+add column if not exists owner_id uuid;
+
+alter table public.prl_documents
+add column if not exists owner_name text;
+
 do $$
 begin
   if not exists (
@@ -135,3 +170,6 @@ on public.prl_documents (project_id);
 
 create index if not exists prl_documents_invitation_idx
 on public.prl_documents (invitation_id);
+
+create index if not exists prl_workers_invitation_idx
+on public.prl_workers (invitation_id);
