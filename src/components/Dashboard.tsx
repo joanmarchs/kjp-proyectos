@@ -496,6 +496,9 @@ export default function Dashboard() {
                   <Link href={`/licitacion/${project.id}`} className="project-link-action">
                     Licitación
                   </Link>
+                  <Link href={`/prl/${project.id}?name=${encodeURIComponent(project.name)}`} className="project-link-action">
+                    PRL
+                  </Link>
                   <button onClick={() => startEdit(project)}>
                     <Pencil size={14} />
                     Editar
