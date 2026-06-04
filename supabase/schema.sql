@@ -37,6 +37,7 @@ create table if not exists public.prl_invitations (
   company_cif text,
   contact_name text,
   role text,
+  parent_invitation_id uuid references public.prl_invitations(id) on delete set null,
   token text not null unique,
   status text not null default 'invited',
   contractor_id uuid,
@@ -139,6 +140,9 @@ add column if not exists contractor_id uuid;
 
 alter table public.prl_invitations
 add column if not exists accepted_at timestamptz;
+
+alter table public.prl_invitations
+add column if not exists parent_invitation_id uuid references public.prl_invitations(id) on delete set null;
 
 alter table public.prl_contractors
 add column if not exists contractor_type text not null default 'empresa';

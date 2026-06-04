@@ -64,6 +64,7 @@ export async function POST(request: Request) {
     companyCif?: string;
     contactName?: string;
     role?: string;
+    parentInvitationId?: string | null;
   };
   const projectId = body.projectId?.trim() ?? "";
   const projectName = body.projectName?.trim() ?? "";
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
       company_cif: body.companyCif?.trim() || null,
       contact_name: body.contactName?.trim() || null,
       role: body.role?.trim() || null,
+      parent_invitation_id: body.parentInvitationId?.trim() || null,
       token: prlToken()
     })
     .select("*")
@@ -108,6 +110,7 @@ export async function PATCH(request: Request) {
     companyCif?: string;
     contactName?: string;
     role?: string;
+    parentInvitationId?: string | null;
   };
   const id = body.id?.trim() ?? "";
   const companyName = body.companyName?.trim() ?? "";
@@ -125,6 +128,7 @@ export async function PATCH(request: Request) {
       company_cif: body.companyCif?.trim() || null,
       contact_name: body.contactName?.trim() || null,
       role: body.role?.trim() || null,
+      parent_invitation_id: body.parentInvitationId?.trim() || null,
       updated_at: new Date().toISOString()
     })
     .eq("id", id)

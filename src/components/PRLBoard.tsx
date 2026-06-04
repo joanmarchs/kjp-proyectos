@@ -35,6 +35,7 @@ type PrlInvitation = {
   company_cif: string | null;
   contact_name: string | null;
   role: string | null;
+  parent_invitation_id?: string | null;
   status: string;
   token: string;
   contractor_id?: string | null;
@@ -42,6 +43,12 @@ type PrlInvitation = {
   email_sent_at?: string | null;
   email_error?: string | null;
 };
+
+type TreeAction =
+  | { kind: "company"; parent: null }
+  | { kind: "subcontractor"; parent: PrlInvitation }
+  | { kind: "worker"; parent: PrlInvitation }
+  | null;
 
 type RemotePrlDocument = {
   id: string;
@@ -133,6 +140,15 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   const [inviteContact, setInviteContact] = useState("");
   const [inviteRole, setInviteRole] = useState("");
   const [editingInvitationId, setEditingInvitationId] = useState<string | null>(null);
+  const [treeAction, setTreeAction] = useState<TreeAction>(null);
+  const [treeCompany, setTreeCompany] = useState("");
+  const [treeEmail, setTreeEmail] = useState("");
+  const [treeCif, setTreeCif] = useState("");
+  const [treeContact, setTreeContact] = useState("");
+  const [treeRole, setTreeRole] = useState("");
+  const [workerName, setWorkerName] = useState("");
+  const [workerDni, setWorkerDni] = useState("");
+  const [workerPosition, setWorkerPosition] = useState("");
 
   async function loadRemotePrl() {
     const response = await fetch(`/api/prl/project/${projectId}`);
@@ -220,6 +236,71 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     const wasEditing = Boolean(editingInvitationId);
     resetInvitationForm();
     setMessage(wasEditing ? "Empresa actualizada." : data.emailSent ? "Invitacion enviada por email." : `Invitacion creada, email pendiente: ${data.emailError ?? ""}`);
+    await loadRemotePrl();
+  }
+
+  function openTreeAction(action: TreeAction) {
+    setTreeAction(action);
+    setTreeCompany("");
+    setTreeEmail("");
+    setTreeCif("");
+    setTreeContact("");
+    setTreeRole(action?.kind === "subcontractor" ? "Subcontrata" : "");
+    setWorkerName("");
+    setWorkerDni("");
+    setWorkerPosition("");
+    setMessage("");
+  }
+
+  async function saveTreeCompany(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!treeAction || treeAction.kind === "worker") return;
+    const response = await fetch("/api/prl/invitations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        projectName,
+        companyName: treeCompany,
+        companyEmail: treeEmail,
+        companyCif: treeCif,
+        contactName: treeContact,
+        role: treeRole || (treeAction.kind === "subcontractor" ? "Subcontrata" : "Empresa principal"),
+        parentInvitationId: treeAction.kind === "subcontractor" ? treeAction.parent.id : null
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo crear la empresa.");
+      return;
+    }
+    setTreeAction(null);
+    setMessage(treeAction.kind === "subcontractor" ? "Subcontrata creada." : "Empresa creada.");
+    await loadRemotePrl();
+  }
+
+  async function saveTreeWorker(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!treeAction || treeAction.kind !== "worker") return;
+    const response = await fetch("/api/prl/workers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        invitationId: treeAction.parent.id,
+        contractorId: treeAction.parent.contractor_id,
+        fullName: workerName,
+        dni: workerDni,
+        position: workerPosition
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo crear el trabajador.");
+      return;
+    }
+    setTreeAction(null);
+    setMessage("Trabajador creado.");
     await loadRemotePrl();
   }
 
@@ -336,7 +417,38 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
           {message ? <div className="prl-admin-notice">{message}</div> : null}
 
           {tab === "estructura" ? (
-            <StructureView invitations={filteredInvitations} workers={payload.workers} totals={totals} />
+            <>
+              <TreeActionPanel
+                action={treeAction}
+                company={treeCompany}
+                email={treeEmail}
+                cif={treeCif}
+                contact={treeContact}
+                role={treeRole}
+                workerName={workerName}
+                workerDni={workerDni}
+                workerPosition={workerPosition}
+                setCompany={setTreeCompany}
+                setEmail={setTreeEmail}
+                setCif={setTreeCif}
+                setContact={setTreeContact}
+                setRole={setTreeRole}
+                setWorkerName={setWorkerName}
+                setWorkerDni={setWorkerDni}
+                setWorkerPosition={setWorkerPosition}
+                onCancel={() => setTreeAction(null)}
+                onSaveCompany={saveTreeCompany}
+                onSaveWorker={saveTreeWorker}
+              />
+              <StructureView
+                invitations={filteredInvitations}
+                workers={payload.workers}
+                totals={totals}
+                onAddCompany={() => openTreeAction({ kind: "company", parent: null })}
+                onAddSubcontractor={(parent) => openTreeAction({ kind: "subcontractor", parent })}
+                onAddWorker={(parent) => openTreeAction({ kind: "worker", parent })}
+              />
+            </>
           ) : null}
           {tab === "empresas" ? (
             <CompaniesView
@@ -368,16 +480,112 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   );
 }
 
-function StructureView({ invitations, workers, totals }: { invitations: PrlInvitation[]; workers: PrlWorker[]; totals: { companies: number; subcontractors: number; workers: number } }) {
+function TreeActionPanel({
+  action,
+  company,
+  email,
+  cif,
+  contact,
+  role,
+  workerName,
+  workerDni,
+  workerPosition,
+  setCompany,
+  setEmail,
+  setCif,
+  setContact,
+  setRole,
+  setWorkerName,
+  setWorkerDni,
+  setWorkerPosition,
+  onCancel,
+  onSaveCompany,
+  onSaveWorker
+}: {
+  action: TreeAction;
+  company: string;
+  email: string;
+  cif: string;
+  contact: string;
+  role: string;
+  workerName: string;
+  workerDni: string;
+  workerPosition: string;
+  setCompany: (value: string) => void;
+  setEmail: (value: string) => void;
+  setCif: (value: string) => void;
+  setContact: (value: string) => void;
+  setRole: (value: string) => void;
+  setWorkerName: (value: string) => void;
+  setWorkerDni: (value: string) => void;
+  setWorkerPosition: (value: string) => void;
+  onCancel: () => void;
+  onSaveCompany: (event: FormEvent<HTMLFormElement>) => void;
+  onSaveWorker: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  if (!action) return null;
+  const title =
+    action.kind === "company"
+      ? "Anadir empresa principal"
+      : action.kind === "subcontractor"
+        ? `Anadir subcontrata de ${action.parent.company_name}`
+        : `Anadir trabajador de ${action.parent.company_name}`;
+
+  if (action.kind === "worker") {
+    return (
+      <form className="tree-action-panel" onSubmit={onSaveWorker}>
+        <h2>{title}</h2>
+        <label>Nombre trabajador<input value={workerName} onChange={(event) => setWorkerName(event.target.value)} /></label>
+        <label>DNI / NIE<input value={workerDni} onChange={(event) => setWorkerDni(event.target.value)} /></label>
+        <label>Puesto<input value={workerPosition} onChange={(event) => setWorkerPosition(event.target.value)} /></label>
+        <button className="primary" type="submit">Crear trabajador</button>
+        <button type="button" onClick={onCancel}>Cancelar</button>
+      </form>
+    );
+  }
+
+  return (
+    <form className="tree-action-panel" onSubmit={onSaveCompany}>
+      <h2>{title}</h2>
+      <label>Empresa<input value={company} onChange={(event) => setCompany(event.target.value)} /></label>
+      <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+      <label>CIF / NIF<input value={cif} onChange={(event) => setCif(event.target.value)} /></label>
+      <label>Contacto<input value={contact} onChange={(event) => setContact(event.target.value)} /></label>
+      <label>Rol<input value={role} onChange={(event) => setRole(event.target.value)} /></label>
+      <button className="primary" type="submit">Crear y enviar invitacion</button>
+      <button type="button" onClick={onCancel}>Cancelar</button>
+    </form>
+  );
+}
+
+function StructureView({
+  invitations,
+  workers,
+  totals,
+  onAddCompany,
+  onAddSubcontractor,
+  onAddWorker
+}: {
+  invitations: PrlInvitation[];
+  workers: PrlWorker[];
+  totals: { companies: number; subcontractors: number; workers: number };
+  onAddCompany: () => void;
+  onAddSubcontractor: (parent: PrlInvitation) => void;
+  onAddWorker: (parent: PrlInvitation) => void;
+}) {
+  const rootInvitations = invitations.filter((invitation) => !invitation.parent_invitation_id);
+  const childInvitations = (parentId: string) => invitations.filter((invitation) => invitation.parent_invitation_id === parentId);
+
   return (
     <section className="structure-card">
       <div className="org-root">
-        <OrgCard title="CONTRATA GENERAL" subtitle="KJP Retail Construction" tone="blue" meta="Responsables: jm / knarik" />
+        <OrgCard title="CONTRATA GENERAL" subtitle="KJP Retail Construction" tone="blue" meta="Responsables: jm / knarik" onAdd={onAddCompany} />
       </div>
       <div className="org-branches">
-        {invitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
-        {invitations.map((invitation, index) => {
+        {rootInvitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
+        {rootInvitations.map((invitation, index) => {
           const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id || worker.contractor_id === invitation.contractor_id);
+          const subcontractors = childInvitations(invitation.id);
           return (
             <div className="org-column" key={invitation.id}>
               <OrgCard
@@ -385,7 +593,34 @@ function StructureView({ invitations, workers, totals }: { invitations: PrlInvit
                 subtitle={invitation.role || invitation.company_email}
                 tone={companyTone(index)}
                 meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
+                onAddSubcontractor={() => onAddSubcontractor(invitation)}
+                onAddWorker={() => onAddWorker(invitation)}
               />
+              {subcontractors.length ? (
+                <div className="org-children">
+                  {subcontractors.map((subcontractor, subIndex) => {
+                    const subcontractorWorkers = workers.filter((worker) => worker.invitation_id === subcontractor.id || worker.contractor_id === subcontractor.contractor_id);
+                    return (
+                      <div className="org-child-group" key={subcontractor.id}>
+                        <OrgCard
+                          title={subcontractor.company_name}
+                          subtitle={subcontractor.role || "Subcontrata"}
+                          tone={companyTone(index + subIndex + 1)}
+                          meta={`Responsable: ${subcontractor.contact_name || "Pendiente"}`}
+                          onAddSubcontractor={() => onAddSubcontractor(subcontractor)}
+                          onAddWorker={() => onAddWorker(subcontractor)}
+                        />
+                        <div className="org-worker-list">
+                          {subcontractorWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className="org-worker-list">
+                {linkedWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
+              </div>
               <div className="org-subcard">
                 <strong>{linkedWorkers.length}</strong>
                 <span>Trabajadores</span>
@@ -406,7 +641,23 @@ function StructureView({ invitations, workers, totals }: { invitations: PrlInvit
   );
 }
 
-function OrgCard({ title, subtitle, tone, meta }: { title: string; subtitle: string; tone: string; meta: string }) {
+function OrgCard({
+  title,
+  subtitle,
+  tone,
+  meta,
+  onAdd,
+  onAddSubcontractor,
+  onAddWorker
+}: {
+  title: string;
+  subtitle: string;
+  tone: string;
+  meta: string;
+  onAdd?: () => void;
+  onAddSubcontractor?: () => void;
+  onAddWorker?: () => void;
+}) {
   return (
     <article className={`org-card ${tone}`}>
       <div className="org-icon"><Building2 size={26} /></div>
@@ -415,7 +666,13 @@ function OrgCard({ title, subtitle, tone, meta }: { title: string; subtitle: str
         <span>{subtitle}</span>
         <small><Users size={12} /> {meta}</small>
       </div>
-      <button><Plus size={16} /></button>
+      {onAdd ? <button onClick={onAdd}><Plus size={16} /></button> : null}
+      {!onAdd && (onAddSubcontractor || onAddWorker) ? (
+        <div className="org-card-actions">
+          {onAddSubcontractor ? <button title="Anadir subcontrata" onClick={onAddSubcontractor}><Building2 size={15} /></button> : null}
+          {onAddWorker ? <button title="Anadir trabajador" onClick={onAddWorker}><Users size={15} /></button> : null}
+        </div>
+      ) : null}
     </article>
   );
 }
