@@ -257,7 +257,10 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   async function saveTreeCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!treeAction || treeAction.kind === "worker") return;
-    const parentInvitationId = treeAction.kind === "subcontractor" ? treeAction.parent?.id ?? treeParentId : null;
+    const parentInvitationId =
+      treeAction.kind === "subcontractor"
+        ? treeAction.parent?.id ?? treeParentId
+        : treeAction.parent?.parent_invitation_id ?? null;
     if (treeAction.kind === "subcontractor" && !parentInvitationId) {
       setMessage("Selecciona la empresa de la que cuelga la subcontrata.");
       return;
@@ -547,6 +550,9 @@ function TreeActionPanel({
         : action.kind === "subcontractor"
         ? `Anadir subcontrata${action.parent ? ` de ${action.parent.company_name}` : ""}`
         : `Anadir trabajador de ${action.parent ? action.parent.company_name : "Contrata General KJP Retail"}`;
+  const sameLevelParent = action.kind === "company" && action.parent?.parent_invitation_id
+    ? invitations.find((invitation) => invitation.id === action.parent?.parent_invitation_id)
+    : null;
 
   if (action.kind === "worker") {
     return (
@@ -570,6 +576,16 @@ function TreeActionPanel({
     <div className="tree-modal-backdrop">
       <form className="tree-action-modal" onSubmit={onSaveCompany}>
         <h2>{title}</h2>
+        {action.kind === "subcontractor" && action.parent ? (
+          <p className="tree-modal-hint">Se guardara como subcontrata directa de {action.parent.company_name}.</p>
+        ) : null}
+        {action.kind === "company" && action.parent ? (
+          <p className="tree-modal-hint">
+            {sameLevelParent
+              ? `Se guardara al mismo nivel que ${action.parent.company_name}, dentro de ${sameLevelParent.company_name}.`
+              : `Se guardara al mismo nivel que ${action.parent.company_name}, como empresa principal.`}
+          </p>
+        ) : null}
         {action.kind === "subcontractor" && !action.parent ? (
           <label>Empresa principal
             <select value={parentId} onChange={(event) => setParentId(event.target.value)}>

@@ -91,7 +91,12 @@ export async function POST(request: Request) {
     .select("*")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const message = error.message.toLowerCase().includes("parent_invitation_id")
+      ? "Falta aplicar en Supabase la columna parent_invitation_id para guardar subcontratas."
+      : error.message;
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   const email = await sendInvitationAndMark({ supabase, request, invitation: data });
   return NextResponse.json({ invitation: data, ...email });
@@ -135,7 +140,12 @@ export async function PATCH(request: Request) {
     .select("*")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const message = error.message.toLowerCase().includes("parent_invitation_id")
+      ? "Falta aplicar en Supabase la columna parent_invitation_id para guardar subcontratas."
+      : error.message;
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
   return NextResponse.json({ invitation: data });
 }
 
