@@ -182,6 +182,12 @@
   font-weight: 800;
 }
 
+.prl-upload button.secondary {
+  border: 1px solid #c8d3c0;
+  background: #ffffff;
+  color: #294632;
+}
+
 .prl-table-head {
   display: flex;
   align-items: center;
@@ -336,7 +342,7 @@
 
 .prl-admin-list article {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) minmax(150px, 1fr) minmax(120px, 0.8fr) auto auto auto auto;
+  grid-template-columns: minmax(170px, 1.2fr) minmax(170px, 1fr) minmax(120px, 0.7fr) auto minmax(230px, auto) auto;
   gap: 10px;
   align-items: center;
   border: 1px solid #d6ded0;
@@ -352,6 +358,10 @@
 }
 
 .prl-admin-list button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 28px;
   border: 1px solid #c8d3c0;
   border-radius: 6px;
@@ -360,6 +370,23 @@
   cursor: pointer;
   font-weight: 800;
   padding: 0 10px;
+}
+
+.prl-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.prl-admin-list button.danger {
+  border-color: #e1a49e;
+  color: #b64338;
+}
+
+.prl-mail-error {
+  color: #b64338;
+  font-weight: 800;
 }
 
 .contractor-prl {

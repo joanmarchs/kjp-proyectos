@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Check, FileUp, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Edit3, FileUp, Mail, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -62,6 +62,8 @@ type PrlInvitation = {
   status: string;
   token: string;
   created_at: string;
+  email_sent_at?: string | null;
+  email_error?: string | null;
 };
 
 type RemotePrlDocument = {
@@ -219,6 +221,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   const [inviteContact, setInviteContact] = useState("");
   const [inviteRole, setInviteRole] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
+  const [editingInvitationId, setEditingInvitationId] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(storageKey);
@@ -343,13 +346,33 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     setState((current) => ({ ...current, documents: current.documents.filter((document) => document.id !== id) }));
   }
 
-  async function createInvitation(event: FormEvent<HTMLFormElement>) {
+  function resetInvitationForm() {
+    setInviteCompany("");
+    setInviteEmail("");
+    setInviteCif("");
+    setInviteContact("");
+    setInviteRole("");
+    setEditingInvitationId(null);
+  }
+
+  function startEditInvitation(invitation: PrlInvitation) {
+    setEditingInvitationId(invitation.id);
+    setInviteCompany(invitation.company_name);
+    setInviteEmail(invitation.company_email);
+    setInviteCif(invitation.company_cif ?? "");
+    setInviteContact(invitation.contact_name ?? "");
+    setInviteRole(invitation.role ?? "");
+    setInviteMessage("Editando invitación. Guarda los cambios cuando termines.");
+  }
+
+  async function saveInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setInviteMessage("");
     const response = await fetch("/api/prl/invitations", {
-      method: "POST",
+      method: editingInvitationId ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        id: editingInvitationId,
         projectId,
         projectName,
         companyName: inviteCompany,
@@ -361,16 +384,48 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     });
     const payload = await response.json();
     if (!response.ok) {
-      setInviteMessage(payload.error ?? "No se pudo crear la invitación.");
+      setInviteMessage(payload.error ?? "No se pudo guardar la invitación.");
       return;
     }
-    setInviteCompany("");
-    setInviteEmail("");
-    setInviteCif("");
-    setInviteContact("");
-    setInviteRole("");
-    setInviteMessage("Invitación creada. Se ha abierto el email tipo para enviar.");
-    window.location.href = payload.mailto;
+    const wasEditing = Boolean(editingInvitationId);
+    resetInvitationForm();
+    if (wasEditing) {
+      setInviteMessage("Invitación actualizada.");
+    } else if (payload.emailSent) {
+      setInviteMessage(`Invitación creada y email enviado desde ${payload.mailFrom ?? "PRL@kjpretail.com"}.`);
+    } else {
+      setInviteMessage(`Invitación creada, pero el email no se pudo enviar: ${payload.emailError ?? "revisa Microsoft Graph Mail.Send."}`);
+    }
+    await loadRemotePrl();
+  }
+
+  async function deleteInvitation(invitation: PrlInvitation) {
+    const ok = window.confirm(`Eliminar la invitación de ${invitation.company_name}?`);
+    if (!ok) return;
+    const response = await fetch("/api/prl/invitations", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: invitation.id })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setInviteMessage(payload.error ?? "No se pudo eliminar la invitación.");
+      return;
+    }
+    if (editingInvitationId === invitation.id) resetInvitationForm();
+    setInviteMessage("Invitación eliminada.");
+    await loadRemotePrl();
+  }
+
+  async function resendInvitation(invitation: PrlInvitation) {
+    setInviteMessage("");
+    const response = await fetch(`/api/prl/invitations/${invitation.id}/resend`, { method: "POST" });
+    const payload = await response.json();
+    if (!response.ok || !payload.emailSent) {
+      setInviteMessage(payload.emailError ?? payload.error ?? "No se pudo reenviar el email.");
+      return;
+    }
+    setInviteMessage(`Email reenviado desde ${payload.mailFrom ?? "PRL@kjpretail.com"}.`);
     await loadRemotePrl();
   }
 
@@ -428,7 +483,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
       <section className="prl-workspace">
         <aside className="prl-panel">
           <h2>Invitar empresa / autónomo</h2>
-          <form className="prl-upload" onSubmit={createInvitation}>
+          <form className="prl-upload" onSubmit={saveInvitation}>
             <label>
               Empresa o autónomo
               <input value={inviteCompany} onChange={(event) => setInviteCompany(event.target.value)} placeholder="Nombre fiscal o comercial" />
@@ -449,7 +504,12 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
               Rol en obra
               <input value={inviteRole} onChange={(event) => setInviteRole(event.target.value)} placeholder="Electricidad, clima, pintura..." />
             </label>
-            <button type="submit">Crear invitación PRL</button>
+            <button type="submit">{editingInvitationId ? "Guardar cambios" : "Crear invitación PRL"}</button>
+            {editingInvitationId ? (
+              <button type="button" className="secondary" onClick={resetInvitationForm}>
+                Cancelar edición
+              </button>
+            ) : null}
           </form>
           {inviteMessage ? <p className="prl-inline-message">{inviteMessage}</p> : null}
 
@@ -510,6 +570,21 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
                     <span>{invitation.company_email}</span>
                     <span>{invitation.role || "Rol pendiente"}</span>
                     <span className="prl-badge revision">{invitation.status}</span>
+                    <div className="prl-admin-actions">
+                      <button type="button" onClick={() => startEditInvitation(invitation)}>
+                        <Edit3 size={14} />
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => resendInvitation(invitation)}>
+                        <Mail size={14} />
+                        Reenviar
+                      </button>
+                      <button type="button" className="danger" onClick={() => deleteInvitation(invitation)}>
+                        <Trash2 size={14} />
+                        Eliminar
+                      </button>
+                    </div>
+                    {invitation.email_error ? <span className="prl-mail-error">Email pendiente</span> : null}
                   </article>
                 ))}
               </div>

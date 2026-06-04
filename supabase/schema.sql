@@ -39,6 +39,8 @@ create table if not exists public.prl_invitations (
   role text,
   token text not null unique,
   status text not null default 'invited',
+  email_sent_at timestamptz,
+  email_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -81,6 +83,12 @@ using (true);
 
 create index if not exists prl_invitations_project_idx
 on public.prl_invitations (project_id);
+
+alter table public.prl_invitations
+add column if not exists email_sent_at timestamptz;
+
+alter table public.prl_invitations
+add column if not exists email_error text;
 
 create index if not exists prl_documents_project_idx
 on public.prl_documents (project_id);
