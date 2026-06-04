@@ -314,10 +314,139 @@
   border-color: #e1a49e;
 }
 
+.prl-inline-message {
+  margin: 10px 0 18px;
+  color: #61705b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.prl-admin-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.prl-admin-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.prl-admin-list article {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.2fr) minmax(150px, 1fr) minmax(120px, 0.8fr) auto auto auto auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d6ded0;
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 10px;
+}
+
+.prl-admin-list span,
+.prl-admin-list a {
+  color: #61705b;
+  font-size: 13px;
+}
+
+.prl-admin-list button {
+  min-height: 28px;
+  border: 1px solid #c8d3c0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #294632;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.contractor-prl {
+  min-height: 100vh;
+  background: #f4f6f2;
+  color: #172017;
+  padding: 34px;
+}
+
+.contractor-card {
+  max-width: 920px;
+  margin: 0 auto;
+  border: 1px solid #d6ded0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 28px;
+}
+
+.contractor-card h1 {
+  color: #172017;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 800;
+}
+
+.contractor-upload {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.contractor-upload label {
+  display: grid;
+  gap: 6px;
+  color: #61705b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.contractor-upload input,
+.contractor-upload select {
+  min-height: 38px;
+  border: 1px solid #c8d3c0;
+  border-radius: 6px;
+  background: #f8faf6;
+  color: #172017;
+  padding: 0 10px;
+}
+
+.contractor-upload button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: #4e8f76;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.contractor-docs {
+  display: grid;
+  gap: 10px;
+}
+
+.contractor-docs article {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d6ded0;
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 12px;
+}
+
 @media (max-width: 1100px) {
   .prl-header,
   .prl-workspace,
-  .prl-summary {
+  .prl-summary,
+  .contractor-upload,
+  .contractor-docs article,
+  .prl-admin-list article {
     grid-template-columns: 1fr;
   }
 }

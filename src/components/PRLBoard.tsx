@@ -52,6 +52,30 @@ type PrlDocument = {
   rejectionComment: string;
 };
 
+type PrlInvitation = {
+  id: string;
+  company_name: string;
+  company_email: string;
+  company_cif: string | null;
+  contact_name: string | null;
+  role: string | null;
+  status: string;
+  token: string;
+  created_at: string;
+};
+
+type RemotePrlDocument = {
+  id: string;
+  company_name: string;
+  company_email: string;
+  document_type: string;
+  file_name: string;
+  status: DocumentStatus;
+  expiry_date: string | null;
+  signed_url?: string | null;
+  rejection_comment?: string | null;
+};
+
 type PrlState = {
   companies: PrlCompany[];
   workers: PrlWorker[];
@@ -187,6 +211,14 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   const [issueDate, setIssueDate] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [fileName, setFileName] = useState("");
+  const [invitations, setInvitations] = useState<PrlInvitation[]>([]);
+  const [remoteDocuments, setRemoteDocuments] = useState<RemotePrlDocument[]>([]);
+  const [inviteCompany, setInviteCompany] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteCif, setInviteCif] = useState("");
+  const [inviteContact, setInviteContact] = useState("");
+  const [inviteRole, setInviteRole] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
 
   useEffect(() => {
     const saved = window.localStorage.getItem(storageKey);
@@ -196,6 +228,21 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   useEffect(() => {
     window.localStorage.setItem(storageKey, JSON.stringify(state));
   }, [state, storageKey]);
+
+  async function loadRemotePrl() {
+    const response = await fetch(`/api/prl/project/${projectId}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      setInviteMessage(payload.error ?? "No se pudo cargar PRL de Supabase.");
+      return;
+    }
+    setInvitations(payload.invitations ?? []);
+    setRemoteDocuments(payload.documents ?? []);
+  }
+
+  useEffect(() => {
+    loadRemotePrl().catch((error) => setInviteMessage(error instanceof Error ? error.message : "No se pudo cargar PRL."));
+  }, [projectId]);
 
   useEffect(() => {
     setDocType(defaultDocumentTypes[category][0]);
@@ -296,6 +343,53 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     setState((current) => ({ ...current, documents: current.documents.filter((document) => document.id !== id) }));
   }
 
+  async function createInvitation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInviteMessage("");
+    const response = await fetch("/api/prl/invitations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        projectName,
+        companyName: inviteCompany,
+        companyEmail: inviteEmail,
+        companyCif: inviteCif,
+        contactName: inviteContact,
+        role: inviteRole
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setInviteMessage(payload.error ?? "No se pudo crear la invitación.");
+      return;
+    }
+    setInviteCompany("");
+    setInviteEmail("");
+    setInviteCif("");
+    setInviteContact("");
+    setInviteRole("");
+    setInviteMessage("Invitación creada. Se ha abierto el email tipo para enviar.");
+    window.location.href = payload.mailto;
+    await loadRemotePrl();
+  }
+
+  async function reviewRemoteDocument(id: string, status: "aprobado" | "rechazado") {
+    const rejectionComment = status === "rechazado" ? window.prompt("Comentario obligatorio de rechazo") : "";
+    if (status === "rechazado" && !rejectionComment?.trim()) return;
+    const response = await fetch(`/api/prl/documents/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status, rejectionComment })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setInviteMessage(payload.error ?? "No se pudo revisar el documento.");
+      return;
+    }
+    await loadRemotePrl();
+  }
+
   return (
     <main className="prl-page">
       <header className="prl-header">
@@ -333,6 +427,32 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
 
       <section className="prl-workspace">
         <aside className="prl-panel">
+          <h2>Invitar empresa / autónomo</h2>
+          <form className="prl-upload" onSubmit={createInvitation}>
+            <label>
+              Empresa o autónomo
+              <input value={inviteCompany} onChange={(event) => setInviteCompany(event.target.value)} placeholder="Nombre fiscal o comercial" />
+            </label>
+            <label>
+              Email acceso
+              <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="empresa@email.com" />
+            </label>
+            <label>
+              CIF / NIF
+              <input value={inviteCif} onChange={(event) => setInviteCif(event.target.value)} />
+            </label>
+            <label>
+              Contacto
+              <input value={inviteContact} onChange={(event) => setInviteContact(event.target.value)} />
+            </label>
+            <label>
+              Rol en obra
+              <input value={inviteRole} onChange={(event) => setInviteRole(event.target.value)} placeholder="Electricidad, clima, pintura..." />
+            </label>
+            <button type="submit">Crear invitación PRL</button>
+          </form>
+          {inviteMessage ? <p className="prl-inline-message">{inviteMessage}</p> : null}
+
           <h2>Subir / registrar documento</h2>
           <form className="prl-upload" onSubmit={addDocument}>
             <label>
@@ -379,6 +499,39 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
         </aside>
 
         <section className="prl-panel prl-main-panel">
+          <div className="prl-admin-grid">
+            <div className="prl-data-block">
+              <h2>Empresas invitadas</h2>
+              <div className="prl-admin-list">
+                {invitations.length === 0 ? <div className="prl-empty">Sin invitaciones enviadas.</div> : null}
+                {invitations.map((invitation) => (
+                  <article key={invitation.id}>
+                    <strong>{invitation.company_name}</strong>
+                    <span>{invitation.company_email}</span>
+                    <span>{invitation.role || "Rol pendiente"}</span>
+                    <span className="prl-badge revision">{invitation.status}</span>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div className="prl-data-block">
+              <h2>Documentos subidos por empresas</h2>
+              <div className="prl-admin-list">
+                {remoteDocuments.length === 0 ? <div className="prl-empty">Todavía no hay documentos externos.</div> : null}
+                {remoteDocuments.map((document) => (
+                  <article key={document.id}>
+                    <strong>{document.document_type}</strong>
+                    <span>{document.company_name}</span>
+                    <span>{document.file_name}</span>
+                    <span className={`prl-badge ${document.status}`}>{statusLabels[document.status] ?? document.status}</span>
+                    {document.signed_url ? <a href={document.signed_url} target="_blank">Ver</a> : null}
+                    <button onClick={() => reviewRemoteDocument(document.id, "aprobado")}>Aprobar</button>
+                    <button onClick={() => reviewRemoteDocument(document.id, "rechazado")}>Rechazar</button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
           {tab === "empresas" ? <CompaniesTable companies={state.companies} documents={state.documents} /> : null}
           {tab === "trabajadores" ? <WorkersTable workers={state.workers} documents={state.documents} /> : null}
           {tab === "maquinaria" ? <MachinesTable machines={state.machines} documents={state.documents} /> : null}
