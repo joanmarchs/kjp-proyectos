@@ -231,10 +231,6 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     event.preventDefault();
     if (!treeAction || treeAction.kind === "worker") return;
     const parentInvitationId = treeAction.parent?.id ?? treeParentId;
-    if (!parentInvitationId) {
-      setMessage("La subcontrata debe crearse desde el + de la empresa de la que depende.");
-      return;
-    }
     const response = await fetch("/api/prl/invitations", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -246,7 +242,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
         companyCif: treeCif,
         contactName: treeContact,
         role: treeRole || "Subcontrata",
-        parentInvitationId
+        parentInvitationId: parentInvitationId || null
       })
     });
     const data = await response.json();
@@ -466,7 +462,7 @@ function TreeActionPanel({
   if (!action) return null;
   const title =
     action.kind === "subcontractor"
-      ? `Anadir subcontrata de ${action.parent?.company_name ?? "empresa seleccionada"}`
+      ? `Anadir subcontrata de ${action.parent?.company_name ?? "Contrata General"}`
       : `Anadir trabajador de ${action.parent ? action.parent.company_name : "Contrata General KJP Retail"}`;
 
   if (action.kind === "worker") {
@@ -491,7 +487,7 @@ function TreeActionPanel({
     <div className="tree-modal-backdrop">
       <form className="tree-action-modal" onSubmit={onSaveCompany}>
         <h2>{title}</h2>
-        <p className="tree-modal-hint">Se guardara como subcontrata directa de {action.parent?.company_name ?? "la empresa seleccionada"}.</p>
+        <p className="tree-modal-hint">Se guardara como subcontrata directa de {action.parent?.company_name ?? "Contrata General"}.</p>
         <label>Empresa<input value={company} onChange={(event) => setCompany(event.target.value)} /></label>
         <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label>CIF / NIF<input value={cif} onChange={(event) => setCif(event.target.value)} /></label>
@@ -520,6 +516,9 @@ function StructureView({
   const [treeZoom, setTreeZoom] = useState(1);
   const rootInvitations = invitations.filter((invitation) => !invitation.parent_invitation_id);
   const childInvitations = (parentId: string) => invitations.filter((invitation) => invitation.parent_invitation_id === parentId);
+  const workerNameKey = (worker: PrlWorker) => worker.full_name.trim().toLowerCase();
+  const assignedWorkerNames = new Set(workers.filter((worker) => worker.invitation_id).map(workerNameKey));
+  const rootWorkers = workers.filter((worker) => !worker.invitation_id && !worker.contractor_id && !assignedWorkerNames.has(workerNameKey(worker)));
   const handleWheelZoom = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     const delta = event.deltaY > 0 ? -0.06 : 0.06;
@@ -536,65 +535,91 @@ function StructureView({
               subtitle="KJP Retail Construction"
               tone="blue"
               meta="Responsables: jm / knarik"
+              onAddSubcontractor={() => onAddSubcontractor(null)}
               onAddWorker={() => onAddWorker(null)}
             />
             <div className="org-worker-list root-workers">
-              {workers.filter((worker) => !worker.invitation_id && !worker.contractor_id).map((worker) => (
+              {rootWorkers.map((worker) => (
                 <span key={worker.id}><Users size={13} />{worker.full_name}</span>
               ))}
             </div>
           </div>
           <div className="org-branches">
             {rootInvitations.length === 0 ? <div className="prl-empty">Sin empresas invitadas todavia.</div> : null}
-            {rootInvitations.map((invitation, index) => {
-              const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id || worker.contractor_id === invitation.contractor_id);
-              const subcontractors = childInvitations(invitation.id);
-              return (
-                <div className="org-column" key={invitation.id}>
-                  <OrgCard
-                    title={invitation.company_name}
-                    subtitle={invitation.role || invitation.company_email}
-                    tone={companyTone(index)}
-                    meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
-                    onAddSubcontractor={() => onAddSubcontractor(invitation)}
-                    onAddWorker={() => onAddWorker(invitation)}
-                  />
-                  {subcontractors.length ? (
-                    <div className="org-children">
-                      {subcontractors.map((subcontractor, subIndex) => {
-                        const subcontractorWorkers = workers.filter((worker) => worker.invitation_id === subcontractor.id || worker.contractor_id === subcontractor.contractor_id);
-                        return (
-                          <div className="org-child-group" key={subcontractor.id}>
-                            <OrgCard
-                              title={subcontractor.company_name}
-                              subtitle={subcontractor.role || "Subcontrata"}
-                              tone={companyTone(index + subIndex + 1)}
-                              meta={`Responsable: ${subcontractor.contact_name || "Pendiente"}`}
-                              onAddSubcontractor={() => onAddSubcontractor(subcontractor)}
-                              onAddWorker={() => onAddWorker(subcontractor)}
-                            />
-                            <div className="org-worker-list">
-                              {subcontractorWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                  <div className="org-worker-list">
-                    {linkedWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
-                  </div>
-                  <div className="org-subcard">
-                    <strong>{linkedWorkers.length}</strong>
-                    <span>Trabajadores</span>
-                  </div>
-                </div>
-              );
-            })}
+            {rootInvitations.map((invitation, index) => (
+              <OrgNode
+                key={invitation.id}
+                invitation={invitation}
+                depth={0}
+                toneIndex={index}
+                workers={workers}
+                childInvitations={childInvitations}
+                onAddSubcontractor={onAddSubcontractor}
+                onAddWorker={onAddWorker}
+              />
+            ))}
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function OrgNode({
+  invitation,
+  depth,
+  toneIndex,
+  workers,
+  childInvitations,
+  onAddSubcontractor,
+  onAddWorker
+}: {
+  invitation: PrlInvitation;
+  depth: number;
+  toneIndex: number;
+  workers: PrlWorker[];
+  childInvitations: (parentId: string) => PrlInvitation[];
+  onAddSubcontractor: (parent: PrlInvitation | null) => void;
+  onAddWorker: (parent: PrlInvitation | null) => void;
+}) {
+  const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id);
+  const children = childInvitations(invitation.id);
+  const className = depth === 0 ? "org-column" : "org-child-group";
+
+  return (
+    <div className={className}>
+      <OrgCard
+        title={invitation.company_name}
+        subtitle={invitation.role || invitation.company_email}
+        tone={companyTone(toneIndex + depth)}
+        meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
+        onAddSubcontractor={() => onAddSubcontractor(invitation)}
+        onAddWorker={() => onAddWorker(invitation)}
+      />
+      {children.length ? (
+        <div className="org-children">
+          {children.map((child, childIndex) => (
+            <OrgNode
+              key={child.id}
+              invitation={child}
+              depth={depth + 1}
+              toneIndex={toneIndex + childIndex + 1}
+              workers={workers}
+              childInvitations={childInvitations}
+              onAddSubcontractor={onAddSubcontractor}
+              onAddWorker={onAddWorker}
+            />
+          ))}
+        </div>
+      ) : null}
+      <div className="org-worker-list">
+        {linkedWorkers.map((worker) => <span key={worker.id}><Users size={13} />{worker.full_name}</span>)}
+      </div>
+      <div className="org-subcard">
+        <strong>{linkedWorkers.length}</strong>
+        <span>Trabajadores</span>
+      </div>
+    </div>
   );
 }
 
@@ -700,7 +725,9 @@ function WorkersView({ workers, invitations, documents }: { workers: PrlWorker[]
         <div className="admin-table-row head"><span>Trabajador</span><span>DNI/NIE</span><span>Empresa</span><span>Puesto</span><span>Docs</span></div>
         {workers.length === 0 ? <div className="prl-empty">Sin trabajadores registrados por industriales.</div> : null}
         {workers.map((worker) => {
-          const invitation = invitations.find((item) => item.id === worker.invitation_id || item.contractor_id === worker.contractor_id);
+          const invitation = worker.invitation_id
+            ? invitations.find((item) => item.id === worker.invitation_id)
+            : invitations.find((item) => item.contractor_id === worker.contractor_id);
           const docs = documents.filter((document) => document.owner_id === worker.id);
           return (
             <div className="admin-table-row" key={worker.id}>
