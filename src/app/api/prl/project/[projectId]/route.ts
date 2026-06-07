@@ -32,7 +32,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
 
   const directoryInvitationsResult = await supabase
     .from("prl_invitations")
-    .select("company_name,company_email,company_cif,contact_name,contractor_id,updated_at")
+    .select("id,project_id,company_name,company_email,company_cif,contact_name,contractor_id,updated_at")
     .order("updated_at", { ascending: false });
 
   if (directoryInvitationsResult.error) {
@@ -49,6 +49,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
       contact_name: string | null;
       contractor_id: string | null;
       contractor_type: string | null;
+      workers: Array<{
+        id: string;
+        full_name: string;
+        dni: string | null;
+        position: string | null;
+      }>;
     }
   >();
 
@@ -62,7 +68,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
         company_cif: invitation.company_cif,
         contact_name: invitation.contact_name,
         contractor_id: invitation.contractor_id,
-        contractor_type: null
+        contractor_type: null,
+        workers: []
       });
     }
   }
@@ -77,8 +84,52 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
       company_cif: contractor.company_cif || existing?.company_cif || null,
       contact_name: contractor.contact_name || existing?.contact_name || null,
       contractor_id: contractor.id,
-      contractor_type: contractor.contractor_type
+      contractor_type: contractor.contractor_type,
+      workers: existing?.workers ?? []
     });
+  }
+
+  const directoryWorkersResult = await supabase
+    .from("prl_workers")
+    .select("id,invitation_id,contractor_id,full_name,dni,position,created_at")
+    .order("created_at", { ascending: true });
+
+  if (directoryWorkersResult.error && !isMissingRelation(directoryWorkersResult.error)) {
+    return NextResponse.json({ error: directoryWorkersResult.error.message }, { status: 500 });
+  }
+
+  const invitationKeys = new Map(
+    (directoryInvitationsResult.data ?? []).map((invitation) => [
+      invitation.id,
+      invitation.company_cif?.trim().toLowerCase() || invitation.company_email.trim().toLowerCase()
+    ])
+  );
+  const contractorKeys = new Map(
+    contractors.map((contractor) => [
+      contractor.id,
+      contractor.company_cif?.trim().toLowerCase() || contractor.email.trim().toLowerCase()
+    ])
+  );
+
+  for (const worker of directoryWorkersResult.data ?? []) {
+    const key =
+      (worker.invitation_id ? invitationKeys.get(worker.invitation_id) : undefined) ||
+      (worker.contractor_id ? contractorKeys.get(worker.contractor_id) : undefined);
+    if (!key) continue;
+    const company = companyDirectory.get(key);
+    if (!company) continue;
+    const workerKey = worker.dni?.trim().toLowerCase() || `${worker.full_name.trim().toLowerCase()}|${worker.position?.trim().toLowerCase() ?? ""}`;
+    const exists = company.workers.some(
+      (item) => (item.dni?.trim().toLowerCase() || `${item.full_name.trim().toLowerCase()}|${item.position?.trim().toLowerCase() ?? ""}`) === workerKey
+    );
+    if (!exists) {
+      company.workers.push({
+        id: worker.id,
+        full_name: worker.full_name,
+        dni: worker.dni,
+        position: worker.position
+      });
+    }
   }
 
   const documents = await Promise.all(

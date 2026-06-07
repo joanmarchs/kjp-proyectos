@@ -85,6 +85,12 @@ type PrlCompanyDirectory = {
   contact_name: string | null;
   contractor_id: string | null;
   contractor_type: string | null;
+  workers: Array<{
+    id: string;
+    full_name: string;
+    dni: string | null;
+    position: string | null;
+  }>;
 };
 
 type PrlPayload = {
@@ -398,30 +404,17 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
               <StructureView
                 invitations={filteredInvitations}
                 workers={payload.workers}
+                companyDirectory={payload.companyDirectory}
                 onAddSubcontractor={(parent) => openTreeAction({ kind: "subcontractor", parent })}
                 onAddWorker={(parent) => openTreeAction({ kind: "worker", parent })}
               />
             </>
           ) : null}
           {tab === "empresas" ? (
-            <CompaniesView
-              invitations={filteredInvitations}
-              inviteCompany={inviteCompany}
-              inviteEmail={inviteEmail}
-              inviteCif={inviteCif}
-              inviteContact={inviteContact}
-              inviteRole={inviteRole}
-              editingInvitationId={editingInvitationId}
-              setInviteCompany={setInviteCompany}
-              setInviteEmail={setInviteEmail}
-              setInviteCif={setInviteCif}
-              setInviteContact={setInviteContact}
-              setInviteRole={setInviteRole}
-              saveInvitation={saveInvitation}
-              resetInvitationForm={resetInvitationForm}
-              startEditInvitation={startEditInvitation}
-              resendInvitation={resendInvitation}
-              deleteInvitation={deleteInvitation}
+            <CompanyDirectoryView
+              companies={payload.companyDirectory}
+              onChanged={loadRemotePrl}
+              setMessage={setMessage}
             />
           ) : null}
           {tab === "trabajadores" ? <WorkersView workers={payload.workers} invitations={payload.invitations} documents={payload.documents} /> : null}
@@ -552,11 +545,13 @@ function TreeActionPanel({
 function StructureView({
   invitations,
   workers,
+  companyDirectory,
   onAddSubcontractor,
   onAddWorker
 }: {
   invitations: PrlInvitation[];
   workers: PrlWorker[];
+  companyDirectory: PrlCompanyDirectory[];
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
 }) {
@@ -600,6 +595,7 @@ function StructureView({
                 depth={0}
                 toneIndex={index}
                 workers={workers}
+                companyDirectory={companyDirectory}
                 childInvitations={childInvitations}
                 onAddSubcontractor={onAddSubcontractor}
                 onAddWorker={onAddWorker}
@@ -617,6 +613,7 @@ function OrgNode({
   depth,
   toneIndex,
   workers,
+  companyDirectory,
   childInvitations,
   onAddSubcontractor,
   onAddWorker
@@ -625,11 +622,20 @@ function OrgNode({
   depth: number;
   toneIndex: number;
   workers: PrlWorker[];
+  companyDirectory: PrlCompanyDirectory[];
   childInvitations: (parentId: string) => PrlInvitation[];
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
 }) {
-  const linkedWorkers = workers.filter((worker) => worker.invitation_id === invitation.id);
+  const companyKey = invitation.company_cif?.trim().toLowerCase() || invitation.company_email.trim().toLowerCase();
+  const directoryWorkers = companyDirectory.find((company) => company.key === companyKey)?.workers ?? [];
+  const linkedWorkers = [
+    ...workers.filter((worker) => worker.invitation_id === invitation.id),
+    ...directoryWorkers
+  ].filter(
+    (worker, index, items) =>
+      items.findIndex((item) => (item.dni?.trim().toLowerCase() || item.full_name.trim().toLowerCase()) === (worker.dni?.trim().toLowerCase() || worker.full_name.trim().toLowerCase())) === index
+  );
   const children = childInvitations(invitation.id);
   const className = depth === 0 ? "org-column" : "org-child-group";
 
@@ -652,6 +658,7 @@ function OrgNode({
               depth={depth + 1}
               toneIndex={toneIndex + childIndex + 1}
               workers={workers}
+              companyDirectory={companyDirectory}
               childInvitations={childInvitations}
               onAddSubcontractor={onAddSubcontractor}
               onAddWorker={onAddWorker}
@@ -710,56 +717,174 @@ function OrgCard({
   );
 }
 
-function CompaniesView(props: {
-  invitations: PrlInvitation[];
-  inviteCompany: string;
-  inviteEmail: string;
-  inviteCif: string;
-  inviteContact: string;
-  inviteRole: string;
-  editingInvitationId: string | null;
-  setInviteCompany: (value: string) => void;
-  setInviteEmail: (value: string) => void;
-  setInviteCif: (value: string) => void;
-  setInviteContact: (value: string) => void;
-  setInviteRole: (value: string) => void;
-  saveInvitation: (event: FormEvent<HTMLFormElement>) => void;
-  resetInvitationForm: () => void;
-  startEditInvitation: (invitation: PrlInvitation) => void;
-  resendInvitation: (invitation: PrlInvitation) => void;
-  deleteInvitation: (invitation: PrlInvitation) => void;
+function CompanyDirectoryView({
+  companies,
+  onChanged,
+  setMessage
+}: {
+  companies: PrlCompanyDirectory[];
+  onChanged: () => Promise<void>;
+  setMessage: (message: string) => void;
 }) {
+  const [selectedKey, setSelectedKey] = useState("");
+  const [search, setSearch] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [companyCif, setCompanyCif] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contractorType, setContractorType] = useState("empresa");
+  const [workerName, setWorkerName] = useState("");
+  const [workerDni, setWorkerDni] = useState("");
+  const [workerPosition, setWorkerPosition] = useState("");
+
+  const selectedCompany = companies.find((company) => company.key === selectedKey) ?? companies[0] ?? null;
+  const visibleCompanies = companies.filter((company) =>
+    [company.company_name, company.company_email, company.company_cif ?? ""].some((value) =>
+      value.toLowerCase().includes(search.trim().toLowerCase())
+    )
+  );
+
+  useEffect(() => {
+    if (!selectedCompany) return;
+    setSelectedKey(selectedCompany.key);
+    setCompanyName(selectedCompany.company_name);
+    setCompanyEmail(selectedCompany.company_email);
+    setCompanyCif(selectedCompany.company_cif ?? "");
+    setContactName(selectedCompany.contact_name ?? "");
+    setContractorType(selectedCompany.contractor_type ?? "empresa");
+  }, [selectedCompany?.key]);
+
+  async function saveCompany(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCompany) return;
+    const response = await fetch("/api/prl/directory", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        key: selectedCompany.key,
+        contractorId: selectedCompany.contractor_id,
+        companyName,
+        companyEmail,
+        companyCif,
+        contactName,
+        contractorType
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo actualizar la empresa.");
+      return;
+    }
+    setSelectedKey(companyCif.trim().toLowerCase() || companyEmail.trim().toLowerCase());
+    setMessage("Empresa actualizada en el directorio y en sus obras.");
+    await onChanged();
+  }
+
+  async function addWorker(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCompany) return;
+    const response = await fetch("/api/prl/directory", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        companyKey: selectedCompany.key,
+        contractorId: selectedCompany.contractor_id,
+        fullName: workerName,
+        dni: workerDni,
+        position: workerPosition
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMessage(data.error ?? "No se pudo crear el trabajador.");
+      return;
+    }
+    setWorkerName("");
+    setWorkerDni("");
+    setWorkerPosition("");
+    setMessage("Trabajador anadido al directorio de la empresa.");
+    await onChanged();
+  }
+
   return (
-    <section className="admin-grid-two">
-      <form className="admin-panel-card" onSubmit={props.saveInvitation}>
-        <h2>{props.editingInvitationId ? "Editar empresa" : "Anadir empresa / autonomo"}</h2>
-        <label>Empresa<input value={props.inviteCompany} onChange={(event) => props.setInviteCompany(event.target.value)} /></label>
-        <label>Email<input type="email" value={props.inviteEmail} onChange={(event) => props.setInviteEmail(event.target.value)} /></label>
-        <label>CIF / NIF<input value={props.inviteCif} onChange={(event) => props.setInviteCif(event.target.value)} /></label>
-        <label>Contacto<input value={props.inviteContact} onChange={(event) => props.setInviteContact(event.target.value)} /></label>
-        <label>Rol en obra<input value={props.inviteRole} onChange={(event) => props.setInviteRole(event.target.value)} /></label>
-        <button className="primary" type="submit">{props.editingInvitationId ? "Guardar cambios" : "Enviar invitacion"}</button>
-        {props.editingInvitationId ? <button type="button" onClick={props.resetInvitationForm}>Cancelar</button> : null}
-      </form>
-      <div className="admin-panel-card wide">
-        <h2>Empresas y autonomos</h2>
-        <div className="admin-table">
-          <div className="admin-table-row head"><span>Empresa</span><span>Email</span><span>Rol</span><span>Estado</span><span>Acciones</span></div>
-          {props.invitations.map((invitation) => (
-            <div className="admin-table-row" key={invitation.id}>
-              <strong>{invitation.company_name}</strong>
-              <span>{invitation.company_email}</span>
-              <span>{invitation.role || "-"}</span>
-              <span className={`prl-badge ${badgeClass(invitation.status)}`}>{statusLabels[invitation.status] ?? invitation.status}</span>
-              <div className="row-actions">
-                <button onClick={() => props.startEditInvitation(invitation)}><Edit3 size={14} /></button>
-                <button onClick={() => props.resendInvitation(invitation)}><Mail size={14} /></button>
-                <button className="danger" onClick={() => props.deleteInvitation(invitation)}><Trash2 size={14} /></button>
-              </div>
-            </div>
+    <section className="company-directory">
+      <aside className="company-directory-list">
+        <div className="directory-list-header">
+          <strong>Empresas registradas</strong>
+          <span>{companies.length}</span>
+        </div>
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar empresa, CIF o email" />
+        <div className="directory-company-items">
+          {visibleCompanies.map((company) => (
+            <button
+              type="button"
+              key={company.key}
+              className={selectedCompany?.key === company.key ? "active" : ""}
+              onClick={() => setSelectedKey(company.key)}
+            >
+              <Building2 size={18} />
+              <span>
+                <strong>{company.company_name}</strong>
+                <small>{company.company_cif || company.company_email}</small>
+              </span>
+              <b>{company.workers.length}</b>
+            </button>
           ))}
         </div>
-      </div>
+      </aside>
+
+      {selectedCompany ? (
+        <div className="company-directory-detail">
+          <form className="directory-company-form" onSubmit={saveCompany}>
+            <div className="directory-section-title">
+              <div>
+                <span>Ficha de empresa</span>
+                <h2>{selectedCompany.company_name}</h2>
+              </div>
+              <button className="primary" type="submit"><Edit3 size={16} />Guardar</button>
+            </div>
+            <label>Nombre fiscal o comercial<input required value={companyName} onChange={(event) => setCompanyName(event.target.value)} /></label>
+            <label>Email PRL<input required type="email" value={companyEmail} onChange={(event) => setCompanyEmail(event.target.value)} /></label>
+            <label>CIF / NIF<input value={companyCif} onChange={(event) => setCompanyCif(event.target.value)} /></label>
+            <label>Persona de contacto<input value={contactName} onChange={(event) => setContactName(event.target.value)} /></label>
+            <label>Tipo
+              <select value={contractorType} onChange={(event) => setContractorType(event.target.value)}>
+                <option value="empresa">Empresa</option>
+                <option value="autonomo">Autonomo</option>
+              </select>
+            </label>
+          </form>
+
+          <div className="directory-workers">
+            <div className="directory-section-title">
+              <div>
+                <span>Personal reutilizable</span>
+                <h2>Trabajadores</h2>
+              </div>
+              <strong>{selectedCompany.workers.length}</strong>
+            </div>
+            <form className="directory-worker-form" onSubmit={addWorker}>
+              <label>Nombre<input required value={workerName} onChange={(event) => setWorkerName(event.target.value)} /></label>
+              <label>DNI / NIE<input value={workerDni} onChange={(event) => setWorkerDni(event.target.value)} /></label>
+              <label>Puesto<input value={workerPosition} onChange={(event) => setWorkerPosition(event.target.value)} /></label>
+              <button className="primary" type="submit"><Plus size={16} />Anadir trabajador</button>
+            </form>
+            <div className="directory-worker-table">
+              <div className="directory-worker-row head"><span>Trabajador</span><span>DNI / NIE</span><span>Puesto</span></div>
+              {selectedCompany.workers.length === 0 ? <div className="prl-empty">Esta empresa todavia no tiene trabajadores registrados.</div> : null}
+              {selectedCompany.workers.map((worker) => (
+                <div className="directory-worker-row" key={worker.id}>
+                  <strong>{worker.full_name}</strong>
+                  <span>{worker.dni || "-"}</span>
+                  <span>{worker.position || "-"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="admin-panel-card"><div className="prl-empty">Todavia no hay empresas registradas.</div></div>
+      )}
     </section>
   );
 }

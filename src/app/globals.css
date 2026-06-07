@@ -637,6 +637,204 @@
   color: #ffffff;
 }
 
+.company-directory {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+  min-height: calc(100vh - 68px);
+}
+
+.company-directory-list,
+.company-directory-detail > *,
+.directory-workers {
+  border: 1px solid #e4e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.company-directory-list {
+  padding: 16px;
+}
+
+.directory-list-header,
+.directory-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.directory-list-header {
+  margin-bottom: 12px;
+}
+
+.directory-list-header > span,
+.directory-workers .directory-section-title > strong {
+  min-width: 34px;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: #155ee8;
+  text-align: center;
+  padding: 6px 9px;
+}
+
+.company-directory-list > input,
+.directory-company-form input,
+.directory-company-form select,
+.directory-worker-form input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 11px;
+}
+
+.directory-company-items {
+  display: grid;
+  gap: 6px;
+  max-height: calc(100vh - 160px);
+  margin-top: 12px;
+  overflow: auto;
+}
+
+.directory-company-items button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+  padding: 11px;
+}
+
+.directory-company-items button:hover,
+.directory-company-items button.active {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #155ee8;
+}
+
+.directory-company-items span,
+.directory-company-items strong,
+.directory-company-items small {
+  display: block;
+  min-width: 0;
+}
+
+.directory-company-items small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: #64748b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-company-items b {
+  min-width: 28px;
+  border-radius: 999px;
+  background: #e8edf5;
+  color: #334155;
+  text-align: center;
+  padding: 4px 7px;
+}
+
+.company-directory-detail {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.directory-company-form,
+.directory-workers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 14px;
+  padding: 20px;
+}
+
+.directory-section-title {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid #e4e8f0;
+  padding-bottom: 14px;
+}
+
+.directory-section-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.directory-section-title h2 {
+  margin: 4px 0 0;
+  color: #111827;
+  font-size: 21px;
+}
+
+.directory-company-form label,
+.directory-worker-form label {
+  display: grid;
+  gap: 7px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.directory-company-form button,
+.directory-worker-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid #155ee8;
+  border-radius: 8px;
+  background: #155ee8;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 0 14px;
+}
+
+.directory-worker-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.directory-worker-table {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+}
+
+.directory-worker-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 0.8fr) minmax(150px, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 46px;
+  border-top: 1px solid #eef1f6;
+  padding: 8px 12px;
+}
+
+.directory-worker-row.head {
+  border-top: 0;
+  background: #f3f6fa;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .org-subcard strong {
   color: #155ee8;
   font-size: 22px;
@@ -3134,6 +3332,20 @@ td i b {
 }
 
 @media (max-width: 900px) {
+  .company-directory {
+    grid-template-columns: 1fr;
+  }
+
+  .directory-company-items {
+    max-height: 320px;
+  }
+
+  .directory-company-form,
+  .directory-workers,
+  .directory-worker-form {
+    grid-template-columns: 1fr;
+  }
+
   .tender-hero-clean,
   .budget-editor-head,
   .budget-create-clean,
