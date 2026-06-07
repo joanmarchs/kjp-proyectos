@@ -304,27 +304,67 @@
 }
 
 .org-root {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
+.org-root.has-branches::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  bottom: -36px;
+  width: 2px;
+  height: 36px;
+  background: #b8c5d8;
+  transform: translateX(-50%);
+}
+
 .org-branches {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: 22px;
+  gap: 36px;
   width: max-content;
   min-width: 100%;
-  margin-top: 34px;
+  margin-top: 36px;
+  padding-top: 36px;
+}
+
+.org-branches::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 140px;
+  right: 140px;
+  height: 2px;
+  background: #b8c5d8;
 }
 
 .org-column {
+  position: relative;
   display: grid;
   gap: 18px;
   justify-items: center;
-  width: 280px;
+  width: max-content;
+  min-width: 280px;
+}
+
+.org-column::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: -36px;
+  left: 50%;
+  width: 2px;
+  height: 36px;
+  background: #b8c5d8;
+  transform: translateX(-50%);
 }
 
 .org-card,
@@ -337,6 +377,7 @@
 
 .org-card {
   position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr) auto;
   gap: 12px;
@@ -425,25 +466,70 @@
 .org-card.teal strong { color: #089188; }
 
 .org-subcard {
+  position: relative;
+  z-index: 1;
   min-width: 160px;
   padding: 14px 18px;
 }
 
 .org-children {
-  display: grid;
-  gap: 14px;
-  width: 100%;
-  padding-top: 12px;
-  border-top: 2px solid #d9e0ea;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 28px;
+  width: max-content;
+  min-width: 100%;
+  padding-top: 38px;
+}
+
+.org-children::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 18px;
+  left: 140px;
+  right: 140px;
+  height: 2px;
+  background: #b8c5d8;
+}
+
+.org-children::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 20px;
+  background: #b8c5d8;
+  transform: translateX(-50%);
 }
 
 .org-child-group {
+  position: relative;
   display: grid;
   gap: 10px;
   justify-items: center;
+  width: max-content;
+  min-width: 280px;
+}
+
+.org-child-group::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: -20px;
+  left: 50%;
+  width: 2px;
+  height: 20px;
+  background: #b8c5d8;
+  transform: translateX(-50%);
 }
 
 .org-worker-list {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 7px;
   width: 100%;

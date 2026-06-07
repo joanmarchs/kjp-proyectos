@@ -576,7 +576,7 @@ function StructureView({
     <section className="structure-card">
       <div className="structure-viewport" onWheel={handleWheelZoom}>
         <div className="structure-canvas" style={{ "--tree-zoom": treeZoom } as CSSProperties}>
-          <div className="org-root">
+          <div className={`org-root ${rootInvitations.length ? "has-branches" : ""}`}>
             <OrgCard
               title="CONTRATA GENERAL"
               subtitle="KJP Retail Construction"
