@@ -513,6 +513,10 @@
   font-weight: 800;
 }
 
+.tree-action-modal .tree-modal-wide {
+  grid-column: 1 / -1;
+}
+
 .tree-action-modal input,
 .tree-action-modal select {
   min-height: 38px;

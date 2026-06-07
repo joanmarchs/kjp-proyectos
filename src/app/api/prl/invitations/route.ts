@@ -75,6 +75,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Faltan datos obligatorios de invitacion." }, { status: 400 });
   }
 
+  const contractorResult = await supabase.from("prl_contractors").select("id").eq("email", companyEmail).maybeSingle();
+  if (contractorResult.error) {
+    return NextResponse.json({ error: contractorResult.error.message }, { status: 500 });
+  }
+
   const { data, error } = await supabase
     .from("prl_invitations")
     .insert({
@@ -86,6 +91,7 @@ export async function POST(request: Request) {
       contact_name: body.contactName?.trim() || null,
       role: body.role?.trim() || null,
       parent_invitation_id: body.parentInvitationId?.trim() || null,
+      contractor_id: contractorResult.data?.id ?? null,
       token: prlToken()
     })
     .select("*")

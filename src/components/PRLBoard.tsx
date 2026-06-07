@@ -77,11 +77,22 @@ type PrlContractor = {
   contractor_type?: "empresa" | "autonomo";
 };
 
+type PrlCompanyDirectory = {
+  key: string;
+  company_name: string;
+  company_email: string;
+  company_cif: string | null;
+  contact_name: string | null;
+  contractor_id: string | null;
+  contractor_type: string | null;
+};
+
 type PrlPayload = {
   invitations: PrlInvitation[];
   documents: RemotePrlDocument[];
   workers: PrlWorker[];
   contractors: PrlContractor[];
+  companyDirectory: PrlCompanyDirectory[];
 };
 
 const navItems = [
@@ -126,7 +137,13 @@ function companyTone(index: number) {
 
 export default function PRLBoard({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [tab, setTab] = useState<AdminTab>("estructura");
-  const [payload, setPayload] = useState<PrlPayload>({ invitations: [], documents: [], workers: [], contractors: [] });
+  const [payload, setPayload] = useState<PrlPayload>({
+    invitations: [],
+    documents: [],
+    workers: [],
+    contractors: [],
+    companyDirectory: []
+  });
   const [message, setMessage] = useState("");
   const [inviteCompany, setInviteCompany] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -156,7 +173,8 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
       invitations: data.invitations ?? [],
       documents: data.documents ?? [],
       workers: data.workers ?? [],
-      contractors: data.contractors ?? []
+      contractors: data.contractors ?? [],
+      companyDirectory: data.companyDirectory ?? []
     });
   }
 
@@ -364,6 +382,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
                 workerDni={workerDni}
                 workerPosition={workerPosition}
                 invitations={payload.invitations}
+                companyDirectory={payload.companyDirectory}
                 setCompany={setTreeCompany}
                 setEmail={setTreeEmail}
                 setCif={setTreeCif}
@@ -425,6 +444,7 @@ function TreeActionPanel({
   workerDni,
   workerPosition,
   invitations,
+  companyDirectory,
   setCompany,
   setEmail,
   setCif,
@@ -447,6 +467,7 @@ function TreeActionPanel({
   workerDni: string;
   workerPosition: string;
   invitations: PrlInvitation[];
+  companyDirectory: PrlCompanyDirectory[];
   setCompany: (value: string) => void;
   setEmail: (value: string) => void;
   setCif: (value: string) => void;
@@ -488,8 +509,34 @@ function TreeActionPanel({
       <form className="tree-action-modal" onSubmit={onSaveCompany}>
         <h2>{title}</h2>
         <p className="tree-modal-hint">Se guardara como subcontrata directa de {action.parent?.company_name ?? "Contrata General"}.</p>
-        <label>Empresa<input value={company} onChange={(event) => setCompany(event.target.value)} /></label>
-        <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <label className="tree-modal-wide">Empresa registrada
+          <select
+            defaultValue=""
+            onChange={(event) => {
+              const selected = companyDirectory.find((item) => item.key === event.target.value);
+              if (!selected) {
+                setCompany("");
+                setEmail("");
+                setCif("");
+                setContact("");
+                return;
+              }
+              setCompany(selected.company_name);
+              setEmail(selected.company_email);
+              setCif(selected.company_cif ?? "");
+              setContact(selected.contact_name ?? "");
+            }}
+          >
+            <option value="">Nueva empresa / introducir datos manualmente</option>
+            {companyDirectory.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.company_name} - {item.company_cif || item.company_email}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>Empresa<input required value={company} onChange={(event) => setCompany(event.target.value)} /></label>
+        <label>Email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label>CIF / NIF<input value={cif} onChange={(event) => setCif(event.target.value)} /></label>
         <label>Contacto<input value={contact} onChange={(event) => setContact(event.target.value)} /></label>
         <label>Rol<input value={role} onChange={(event) => setRole(event.target.value)} /></label>
