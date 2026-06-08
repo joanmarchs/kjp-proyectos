@@ -165,8 +165,34 @@ export async function DELETE(request: Request) {
   const id = body.id?.trim() ?? "";
   if (!id) return NextResponse.json({ error: "Falta el id de invitacion." }, { status: 400 });
 
-  const { error } = await supabase.from("prl_invitations").delete().eq("id", id);
+  const invitationResult = await supabase.from("prl_invitations").select("id,project_id").eq("id", id).single();
+  if (invitationResult.error) return NextResponse.json({ error: invitationResult.error.message }, { status: 500 });
+
+  const projectInvitationsResult = await supabase
+    .from("prl_invitations")
+    .select("id,parent_invitation_id")
+    .eq("project_id", invitationResult.data.project_id);
+  if (projectInvitationsResult.error) {
+    return NextResponse.json({ error: projectInvitationsResult.error.message }, { status: 500 });
+  }
+
+  const removedIds = new Set([id]);
+  let foundChildren = true;
+  while (foundChildren) {
+    foundChildren = false;
+    for (const invitation of projectInvitationsResult.data ?? []) {
+      if (invitation.parent_invitation_id && removedIds.has(invitation.parent_invitation_id) && !removedIds.has(invitation.id)) {
+        removedIds.add(invitation.id);
+        foundChildren = true;
+      }
+    }
+  }
+
+  const { error } = await supabase
+    .from("prl_invitations")
+    .update({ status: "removed", updated_at: new Date().toISOString() })
+    .in("id", Array.from(removedIds));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, removedIds: Array.from(removedIds) });
 }

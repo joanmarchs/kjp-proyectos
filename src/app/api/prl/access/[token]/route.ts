@@ -18,6 +18,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const { token } = await params;
   const { data: invitation, error } = await supabase.from("prl_invitations").select("*").eq("token", token).single();
   if (error || !invitation) return NextResponse.json({ error: "Invitacion no valida." }, { status: 404 });
+  if (invitation.status === "removed") {
+    return NextResponse.json({ error: "Esta empresa ya no forma parte de la obra." }, { status: 410 });
+  }
 
   const contractorSession = verifyPrlContractorSession((await cookies()).get(PRL_CONTRACTOR_COOKIE)?.value);
   const authenticated = Boolean(contractorSession) && contractorSession?.email === invitation.company_email.trim().toLowerCase();

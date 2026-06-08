@@ -306,7 +306,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
   }
 
   async function deleteInvitation(invitation: PrlInvitation) {
-    if (!window.confirm(`Eliminar ${invitation.company_name}?`)) return;
+    if (!window.confirm(`Retirar ${invitation.company_name} del arbol de esta obra? Su ficha y trabajadores seguiran guardados en el directorio.`)) return;
     const response = await fetch("/api/prl/invitations", {
       method: "DELETE",
       headers: { "content-type": "application/json" },
@@ -314,10 +314,10 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
     });
     const data = await response.json();
     if (!response.ok) {
-      setMessage(data.error ?? "No se pudo eliminar.");
+      setMessage(data.error ?? "No se pudo retirar la empresa de la obra.");
       return;
     }
-    setMessage("Empresa eliminada.");
+    setMessage("Empresa retirada de la obra. Sigue disponible en el directorio global.");
     await loadRemotePrl();
   }
 
@@ -407,6 +407,7 @@ export default function PRLBoard({ projectId, projectName }: { projectId: string
                 companyDirectory={payload.companyDirectory}
                 onAddSubcontractor={(parent) => openTreeAction({ kind: "subcontractor", parent })}
                 onAddWorker={(parent) => openTreeAction({ kind: "worker", parent })}
+                onRemoveCompany={deleteInvitation}
               />
             </>
           ) : null}
@@ -547,13 +548,15 @@ function StructureView({
   workers,
   companyDirectory,
   onAddSubcontractor,
-  onAddWorker
+  onAddWorker,
+  onRemoveCompany
 }: {
   invitations: PrlInvitation[];
   workers: PrlWorker[];
   companyDirectory: PrlCompanyDirectory[];
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
+  onRemoveCompany: (invitation: PrlInvitation) => void;
 }) {
   const [treeZoom, setTreeZoom] = useState(1);
   const rootInvitations = invitations.filter((invitation) => !invitation.parent_invitation_id);
@@ -599,6 +602,7 @@ function StructureView({
                 childInvitations={childInvitations}
                 onAddSubcontractor={onAddSubcontractor}
                 onAddWorker={onAddWorker}
+                onRemoveCompany={onRemoveCompany}
               />
             ))}
           </div>
@@ -616,7 +620,8 @@ function OrgNode({
   companyDirectory,
   childInvitations,
   onAddSubcontractor,
-  onAddWorker
+  onAddWorker,
+  onRemoveCompany
 }: {
   invitation: PrlInvitation;
   depth: number;
@@ -626,6 +631,7 @@ function OrgNode({
   childInvitations: (parentId: string) => PrlInvitation[];
   onAddSubcontractor: (parent: PrlInvitation | null) => void;
   onAddWorker: (parent: PrlInvitation | null) => void;
+  onRemoveCompany: (invitation: PrlInvitation) => void;
 }) {
   const companyKey = invitation.company_cif?.trim().toLowerCase() || invitation.company_email.trim().toLowerCase();
   const directoryWorkers = companyDirectory.find((company) => company.key === companyKey)?.workers ?? [];
@@ -648,6 +654,7 @@ function OrgNode({
         meta={`Responsable: ${invitation.contact_name || "Pendiente"}`}
         onAddSubcontractor={() => onAddSubcontractor(invitation)}
         onAddWorker={() => onAddWorker(invitation)}
+        onRemove={() => onRemoveCompany(invitation)}
       />
       {children.length ? (
         <div className="org-children">
@@ -662,6 +669,7 @@ function OrgNode({
               childInvitations={childInvitations}
               onAddSubcontractor={onAddSubcontractor}
               onAddWorker={onAddWorker}
+              onRemoveCompany={onRemoveCompany}
             />
           ))}
         </div>
@@ -683,7 +691,8 @@ function OrgCard({
   tone,
   meta,
   onAddSubcontractor,
-  onAddWorker
+  onAddWorker,
+  onRemove
 }: {
   title: string;
   subtitle: string;
@@ -691,6 +700,7 @@ function OrgCard({
   meta: string;
   onAddSubcontractor?: () => void;
   onAddWorker: () => void;
+  onRemove?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -703,6 +713,11 @@ function OrgCard({
         <small><Users size={12} /> {meta}</small>
       </div>
       <div className="org-card-actions">
+        {onRemove ? (
+          <button className="org-remove-button" type="button" onClick={onRemove} title="Retirar de esta obra">
+            <Trash2 size={15} />
+          </button>
+        ) : null}
         <button type="button" onClick={() => setMenuOpen((open) => !open)}><Plus size={16} /></button>
         {menuOpen ? (
           <div className="org-add-menu">

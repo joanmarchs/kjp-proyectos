@@ -389,6 +389,19 @@
 
 .org-card-actions {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.org-card-actions .org-remove-button {
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.org-card-actions .org-remove-button:hover {
+  border-color: #dc2626;
+  background: #fef2f2;
 }
 
 .org-add-menu {

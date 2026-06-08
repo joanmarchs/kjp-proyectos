@@ -16,7 +16,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pro
   if (!supabase) return NextResponse.json({ error: "Supabase no esta configurado." }, { status: 500 });
 
   const { projectId } = await params;
-  const invitationsResult = await supabase.from("prl_invitations").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+  const invitationsResult = await supabase
+    .from("prl_invitations")
+    .select("*")
+    .eq("project_id", projectId)
+    .neq("status", "removed")
+    .order("created_at", { ascending: false });
   if (invitationsResult.error) return NextResponse.json({ error: invitationsResult.error.message }, { status: 500 });
 
   const documentsResult = await supabase.from("prl_documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false });
