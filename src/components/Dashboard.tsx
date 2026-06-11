@@ -101,8 +101,13 @@ export default function Dashboard() {
     setMessage("");
     const response = await fetch("/api/sync", { method: "POST" });
     const payload = await response.json();
-    setProjects(payload.projects ?? []);
-    setMessage(payload.persisted === false ? payload.message ?? payload.error ?? "" : "Sincronización completada.");
+    if (payload.persisted === false) {
+      setProjects(payload.projects ?? []);
+      setMessage(payload.message ?? payload.error ?? "");
+    } else {
+      await loadProjects();
+      setMessage("Sincronización completada.");
+    }
     setSyncing(false);
   }
 
@@ -128,14 +133,14 @@ export default function Dashboard() {
     setCreating(false);
 
     if (!response.ok) {
-      setMessage(payload.error ?? "No se pudo crear el proyecto en Holded.");
+      setMessage(payload.error ?? "No se pudo añadir el proyecto.");
       return;
     }
 
     setNewProjectName("");
     setNewProjectStartDate("");
     setShowCreate(false);
-    setMessage(payload.folder?.path ? `Proyecto creado en Holded y carpeta preparada: ${payload.folder.path}` : "Proyecto creado en Holded.");
+    setMessage(payload.folder?.path ? `Proyecto añadido y carpeta preparada: ${payload.folder.path}` : "Proyecto añadido.");
     await loadProjects();
   }
 
@@ -169,7 +174,7 @@ export default function Dashboard() {
   }
 
   async function deleteProject(project: ProjectCost) {
-    const confirmed = window.confirm(`Eliminar "${project.name}" de Holded, Supabase y la carpeta de ESTUDIOS?`);
+    const confirmed = window.confirm(`Eliminar "${project.name}", sus datos asociados y su carpeta?`);
     if (!confirmed) return;
 
     const response = await fetch("/api/project-actions", {
@@ -215,7 +220,8 @@ export default function Dashboard() {
       : payload.folder?.reason
         ? ` Estado guardado sin mover carpeta: ${payload.folder.reason}`
         : "";
-    setMessage(`Estado actualizado a ${statusLabels[status]}.${folderMessage}`);
+    const holdedMessage = payload.holdedCreated ? " Expediente creado en Holded." : "";
+    setMessage(`Estado actualizado a ${statusLabels[status]}.${holdedMessage}${folderMessage}`);
   }
 
   function toggleCreateForm() {
@@ -324,7 +330,7 @@ export default function Dashboard() {
           </button>
           <button className="sync secondary" onClick={toggleCreateForm}>
             {showCreate ? <X size={16} /> : <Plus size={16} />}
-            Nuevo proyecto
+            Añadir proyecto
           </button>
           <button className="sync" onClick={sync} disabled={syncing}>
             <RefreshCw size={16} className={syncing ? "spin" : ""} />
@@ -345,7 +351,7 @@ export default function Dashboard() {
           </label>
           <button className="sync" type="submit" disabled={creating}>
             <Plus size={16} />
-            {creating ? "Creando" : "Crear en Holded"}
+            {creating ? "Creando" : "Añadir proyecto"}
           </button>
         </form>
       ) : null}

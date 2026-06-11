@@ -35,11 +35,26 @@ export async function POST() {
     }
 
     const { data: existingRows } = await supabase.from("project_costs_2026").select("id,raw");
+    const localRowsByHoldedId = new Map(
+      (existingRows ?? [])
+        .map((row: { id: string; raw?: { holded_id?: string | null } | null }) => [row.raw?.holded_id, row] as const)
+        .filter(([holdedId]) => typeof holdedId === "string" && holdedId)
+    );
     const existingStatuses = new Map(
       (existingRows ?? []).map((row: { id: string; raw?: { status?: ProjectStatus } | null }) => [row.id, projectStatus(row.raw?.status)])
     );
 
-    const projectsWithStatus = projects.map((project) => ({ ...project, status: existingStatuses.get(project.id) ?? "fase_estudio" }));
+    const projectsWithStatus = projects.map((project) => {
+      const linkedRow = localRowsByHoldedId.get(project.id);
+      const id = linkedRow?.id ?? project.id;
+      return {
+        ...project,
+        id,
+        status: existingStatuses.get(id) ?? "fase_estudio",
+        holded_id: project.id,
+        local_project: Boolean(linkedRow)
+      };
+    });
 
     const rows = projectsWithStatus.map((project) => ({
       id: project.id,

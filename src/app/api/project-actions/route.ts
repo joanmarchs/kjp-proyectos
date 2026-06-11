@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
-import { deleteHoldedProject, updateHoldedProject } from "@/lib/holded";
+import { createHoldedProject, deleteHoldedProject, updateHoldedProject } from "@/lib/holded";
 import { isAuthenticated } from "@/lib/auth";
 import { deleteProjectFolder, moveProjectFolder } from "@/lib/project-folders";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { ProjectStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+type StoredProjectRaw = {
+  status?: ProjectStatus;
+  holded_id?: string | null;
+  local_project?: boolean;
+  [key: string]: unknown;
+};
 
 function projectStatus(value: unknown): ProjectStatus | null {
   return value === "pendiente_adjudicar" ||
@@ -18,6 +25,15 @@ function projectStatus(value: unknown): ProjectStatus | null {
     : null;
 }
 
+function storedRaw(value: unknown): StoredProjectRaw {
+  return value && typeof value === "object" ? (value as StoredProjectRaw) : {};
+}
+
+function holdedProjectId(rowId: string, raw: StoredProjectRaw) {
+  if (typeof raw.holded_id === "string" && raw.holded_id) return raw.holded_id;
+  return raw.local_project ? null : rowId;
+}
+
 export async function PUT(request: Request) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -25,33 +41,46 @@ export async function PUT(request: Request) {
 
   try {
     const body = (await request.json()) as { id?: string; name?: string; startDate?: string | null };
-    const project = await updateHoldedProject({
-      id: body.id ?? "",
-      name: body.name ?? "",
-      startDate: body.startDate ?? null
-    });
-
+    const id = body.id ?? "";
+    const name = body.name?.trim() ?? "";
+    if (!id || !name) return NextResponse.json({ error: "Faltan datos del proyecto." }, { status: 400 });
     const supabase = getSupabaseAdmin();
-    if (supabase) {
-      const { data: current } = await supabase.from("project_costs_2026").select("raw").eq("id", project.id).maybeSingle();
-      const currentRaw = current?.raw && typeof current.raw === "object" ? (current.raw as { status?: ProjectStatus }) : {};
-      const raw = { ...project, status: projectStatus(currentRaw.status) ?? "fase_estudio" };
+    if (!supabase) return NextResponse.json({ error: "Supabase no esta configurado." }, { status: 500 });
 
-      let { error } = await supabase
+    const { data: current, error: readError } = await supabase
+      .from("project_costs_2026")
+      .select("raw")
+      .eq("id", id)
+      .maybeSingle();
+    if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+
+    const currentRaw = storedRaw(current?.raw);
+    const holdedId = holdedProjectId(id, currentRaw);
+    const holdedProject = holdedId
+      ? await updateHoldedProject({ id: holdedId, name, startDate: body.startDate ?? null })
+      : null;
+    const project = { id, name, startDate: body.startDate ?? null };
+    const raw = {
+      ...currentRaw,
+      ...(holdedProject ?? project),
+      id,
+      holded_id: holdedId,
+      status: projectStatus(currentRaw.status) ?? "fase_estudio"
+    };
+
+    let { error } = await supabase
+      .from("project_costs_2026")
+      .update({ name, start_date: project.startDate, raw, synced_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error && error.message.includes("start_date")) {
+      const fallback = await supabase
         .from("project_costs_2026")
-        .update({ name: project.name, start_date: project.startDate, raw, synced_at: new Date().toISOString() })
-        .eq("id", project.id);
-
-      if (error && error.message.includes("start_date")) {
-        const fallback = await supabase
-          .from("project_costs_2026")
-          .update({ name: project.name, raw, synced_at: new Date().toISOString() })
-          .eq("id", project.id);
-        error = fallback.error;
-      }
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        .update({ name, raw, synced_at: new Date().toISOString() })
+        .eq("id", id);
+      error = fallback.error;
     }
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ project });
   } catch (error) {
@@ -77,29 +106,65 @@ export async function PATCH(request: Request) {
     const supabase = getSupabaseAdmin();
 
     if (supabase) {
-      const { data: current, error: readError } = await supabase.from("project_costs_2026").select("raw").eq("id", id).maybeSingle();
+      const { data: current, error: readError } = await supabase
+        .from("project_costs_2026")
+        .select("name,start_date,raw")
+        .eq("id", id)
+        .maybeSingle();
       if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
 
-      const raw = current?.raw && typeof current.raw === "object" ? current.raw : {};
+      const currentRaw = storedRaw(current?.raw);
+      let holdedCreated = false;
+      let createdHoldedProject: Awaited<ReturnType<typeof createHoldedProject>> | null = null;
+
+      if (status === "fase_obra" && !holdedProjectId(id, currentRaw)) {
+        createdHoldedProject = await createHoldedProject({
+          name: current?.name ?? name,
+          startDate: current?.start_date ?? null
+        });
+        holdedCreated = true;
+      }
+
+      const holdedId = createdHoldedProject?.id ?? holdedProjectId(id, currentRaw);
+      const raw = {
+        ...currentRaw,
+        ...(createdHoldedProject ?? {}),
+        id,
+        status,
+        holded_id: holdedId,
+        local_project: currentRaw.local_project ?? id.startsWith("local-"),
+        ...(holdedCreated ? { holded_created_at: new Date().toISOString() } : {})
+      };
       const { error } = await supabase
         .from("project_costs_2026")
-        .update({ raw: { ...raw, status }, synced_at: new Date().toISOString() })
+        .update({ raw, synced_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      try {
+        const folder = await moveProjectFolder(name, status);
+        const folderMissing = !folder.moved && "reason" in folder && folder.reason === "La carpeta no existia.";
+        return NextResponse.json({
+          status,
+          folder,
+          folderMissing,
+          statusUpdated: true,
+          holdedCreated,
+          holdedProject: createdHoldedProject
+        });
+      } catch (error) {
+        return NextResponse.json({
+          status,
+          statusUpdated: true,
+          holdedCreated,
+          holdedProject: createdHoldedProject,
+          folderError: error instanceof Error ? error.message : "No se pudo mover la carpeta en OneDrive."
+        });
+      }
     }
 
-    try {
-      const folder = await moveProjectFolder(name, status);
-      const folderMissing = !folder.moved && "reason" in folder && folder.reason === "La carpeta no existia.";
-      return NextResponse.json({ status, folder, folderMissing, statusUpdated: true });
-    } catch (error) {
-      return NextResponse.json({
-        status,
-        statusUpdated: true,
-        folderError: error instanceof Error ? error.message : "No se pudo mover la carpeta en OneDrive."
-      });
-    }
+    return NextResponse.json({ error: "Supabase no esta configurado." }, { status: 500 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "No se pudo cambiar el estado del proyecto." },
@@ -117,10 +182,22 @@ export async function DELETE(request: Request) {
     const body = (await request.json()) as { id?: string; name?: string };
     const id = body.id ?? "";
     const name = body.name?.trim() ?? "";
-    await deleteHoldedProject(id);
+    const supabase = getSupabaseAdmin();
+    let raw: StoredProjectRaw = {};
+    if (supabase) {
+      const { data: current, error: readError } = await supabase
+        .from("project_costs_2026")
+        .select("raw")
+        .eq("id", id)
+        .maybeSingle();
+      if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+      raw = storedRaw(current?.raw);
+    }
+
+    const holdedId = holdedProjectId(id, raw);
+    if (holdedId) await deleteHoldedProject(holdedId);
     const folder = name ? await deleteProjectFolder(name) : null;
 
-    const supabase = getSupabaseAdmin();
     if (supabase) {
       const { error } = await supabase.from("project_costs_2026").delete().eq("id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
